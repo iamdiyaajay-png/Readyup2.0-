@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-bg: #090d16;
+  --color-brand-card: #111827;
+  --color-brand-card-hover: #1f2937;
+  --color-brand-border: #1f2937;
+  --color-brand-accent: #10b981; /* Emerald accent */
+  --color-brand-accent-hover: #059669;
+  --color-brand-accent-light: rgba(16, 185, 129, 0.15);
+  --color-brand-text-primary: #f9fafb;
+  --color-brand-text-secondary: #9ca3af;
+  --color-brand-text-muted: #6b7280;
+
+  --animate-shimmer: shimmer 2s infinite linear;
+
+  @keyframes shimmer {
+    0% {
+      background-position: -200% 0;
+    }
+    100% {
+      background-position: 200% 0;
+    }
+  }
+}
+
+/* Custom resets and styling */
+@layer base {
+  body {
+    @apply bg-brand-bg text-brand-text-primary antialiased;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+
+  /* Custom Scrollbars */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-brand-bg;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-brand-border rounded-full hover:bg-brand-text-muted;
+  }
+}
+
+/* Custom Skeleton Class */
+.skeleton {
+  background: linear-gradient(90deg, #1f2937 25%, #374151 50%, #1f2937 75%);
+  background-size: 200% 100%;
+  animation: var(--animate-shimmer);
+}
+
+/* Glassmorphism card utility */
+.glass-card {
+  @apply bg-brand-card/85 backdrop-blur-md border border-brand-border/60 shadow-2xl;
+}

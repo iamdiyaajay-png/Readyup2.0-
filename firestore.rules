@@ -1,0 +1,218 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helper: is the request from an authenticated user?
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // ── Helper: safely fetch the caller's user document.
+    //    Returns null if the document doesn't exist yet (new user flow).
+    function getUserData() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data
+        : null;
+    }
+
+    // ── Helper: is the caller an approved admin?
+    //    Reads from the user document — no hardcoded emails.
+    function isAdmin() {
+      let data = getUserData();
+      return isAuthenticated() && data != null && data.role == 'admin';
+    }
+
+    // ── Helper: is the caller an approved mentor?
+    function isMentor() {
+      let data = getUserData();
+      return isAuthenticated() && data != null && data.role == 'mentor';
+    }
+
+    // ────────────────────────────────────────────────
+    // system/settings — admin email list & config
+    // ────────────────────────────────────────────────
+    match /system/settings {
+      // Any authenticated user may read to check admin emails on login
+      allow read: if isAuthenticated();
+      // Admin can update; anyone can create it if it doesn't exist yet (bootstrap)
+      allow write: if isAdmin() || !exists(/databases/$(database)/documents/system/settings);
+    }
+
+    // ────────────────────────────────────────────────
+    // users — profile documents
+    // STRICT: users can only read/write their own document; admins can read/write all
+    // ────────────────────────────────────────────────
+    match /users/{uid} {
+      // Own doc: always readable
+      // Admin: can read any
+      // Student ↔ Mentor: can read each other's profile (needed for Chat partner resolution)
+      allow read: if isAuthenticated() && (
+        request.auth.uid == uid ||
+        isAdmin() ||
+        resource.data.role == 'mentor' ||
+        resource.data.role == 'student'
+      );
+
+      // New user creation — only the user themselves (first sign-in bootstrap)
+      allow create: if isAuthenticated() && request.auth.uid == uid;
+
+      // Users may update their own doc BUT cannot change their own role or status
+      // Admins can update any field on any document
+      // Mentors can update their assigned students' docs (for cert approval: skillMatrix, certPoints, etc.)
+      allow update: if isAuthenticated() && isAdmin();
+      allow update: if isAuthenticated()
+        && request.auth.uid == uid
+        && !('role' in request.resource.data.diff(resource.data).affectedKeys())
+        && !('status' in request.resource.data.diff(resource.data).affectedKeys());
+      allow update: if isAuthenticated() && isMentor()
+        && resource.data.role == 'student'
+        && resource.data.mentorId == request.auth.uid
+        && !('role' in request.resource.data.diff(resource.data).affectedKeys())
+        && !('status' in request.resource.data.diff(resource.data).affectedKeys());
+
+      // Only admins may delete user documents
+      allow delete: if isAdmin();
+    }
+
+    // ────────────────────────────────────────────────
+    // chats — isolated by studentUid_mentorUid chatId
+    // ────────────────────────────────────────────────
+    match /chats/{chatId} {
+      allow read, write: if isAuthenticated() && (
+        chatId.startsWith(request.auth.uid) ||
+        chatId.endsWith(request.auth.uid) ||
+        isAdmin()
+      );
+
+      match /messages/{msgId} {
+        allow read, write: if isAuthenticated() && (
+          chatId.startsWith(request.auth.uid) ||
+          chatId.endsWith(request.auth.uid) ||
+          isAdmin()
+        );
+      }
+    }
+
+    // ────────────────────────────────────────────────
+    // mockInterviews — per student/mentor isolation
+    // ────────────────────────────────────────────────
+    match /mockInterviews/{id} {
+      allow read: if isAuthenticated() && (
+        resource.data.studentId == request.auth.uid ||
+        resource.data.mentorId == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isAuthenticated() &&
+        request.resource.data.studentId == request.auth.uid;
+      allow update: if isAuthenticated() && (
+        resource.data.studentId == request.auth.uid ||
+        resource.data.mentorId == request.auth.uid ||
+        isAdmin()
+      );
+      allow delete: if isAuthenticated() && (
+        resource.data.studentId == request.auth.uid ||
+        resource.data.mentorId == request.auth.uid ||
+        isAdmin()
+      );
+    }
+
+    // ────────────────────────────────────────────────
+    // projects — student portfolio projects
+    // ────────────────────────────────────────────────
+    match /projects/{id} {
+      // All authenticated users can read (leaderboard, public portfolio)
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() &&
+        request.resource.data.studentId == request.auth.uid;
+      allow update, delete: if isAuthenticated() && (
+        resource.data.studentId == request.auth.uid || isAdmin()
+      );
+    }
+
+    // ────────────────────────────────────────────────
+    // resumeReviews — private per student
+    // ────────────────────────────────────────────────
+    match /resumeReviews/{id} {
+      allow read: if isAuthenticated() && (
+        resource.data.studentId == request.auth.uid || isAdmin()
+      );
+      allow create: if isAuthenticated() &&
+        request.resource.data.studentId == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    // ────────────────────────────────────────────────
+    // courseSuggestions — mentor-pushed, student-readable
+    // ────────────────────────────────────────────────
+    match /courseSuggestions/{id} {
+      allow read: if isAuthenticated();
+      allow create: if isMentor() || isAdmin();
+      allow update: if isAuthenticated() && (
+        resource.data.studentId == request.auth.uid ||
+        isMentor() ||
+        isAdmin()
+      );
+      allow delete: if isMentor() || isAdmin();
+    }
+
+    // ────────────────────────────────────────────────
+    // notifications — per-user inbox
+    // ────────────────────────────────────────────────
+    match /notifications/{id} {
+      allow read: if isAuthenticated() &&
+        resource.data.recipientId == request.auth.uid;
+      allow create: if isAdmin() || isMentor();
+      allow update: if isAuthenticated() &&
+        resource.data.recipientId == request.auth.uid;
+      allow delete: if isAuthenticated() && (
+        resource.data.recipientId == request.auth.uid || isAdmin()
+      );
+    }
+
+    // ────────────────────────────────────────────────
+    // leaderboard — computed scores (admin-managed)
+    // ────────────────────────────────────────────────
+    match /leaderboard/{uid} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // ────────────────────────────────────────────────
+    // certPending — OCR cert submissions awaiting mentor review
+    // ────────────────────────────────────────────────
+    match /certPending/{certId} {
+      // Student can create their own cert submissions
+      allow create: if isAuthenticated() &&
+        request.resource.data.studentId == request.auth.uid;
+
+      // Student can read their own; Mentor can read certs assigned to them; Admin can read all
+      allow read: if isAuthenticated() && (
+        resource.data.studentId == request.auth.uid ||
+        resource.data.mentorId  == request.auth.uid ||
+        isAdmin()
+      );
+
+      // Mentor can update (approve/reject/reupload); student can update their own; admin can update all
+      allow update: if isAuthenticated() && (
+        resource.data.studentId == request.auth.uid ||
+        resource.data.mentorId  == request.auth.uid ||
+        isAdmin()
+      );
+
+      // Only admin can delete
+      allow delete: if isAdmin();
+    }
+
+    // ────────────────────────────────────────────────
+    // certificate_chunks — chunked image storage for certs
+    // (used by binaryStorageService.js)
+    // ────────────────────────────────────────────────
+    match /certificate_chunks/{chunkId} {
+      // Students write their own cert images; mentors & admins read to review
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated() && (isMentor() || isAdmin());
+    }
+
+  }
+}
