@@ -15,6 +15,7 @@ export default function PortfolioGen() {
   const [location, setLocation] = useState('');
   const [projects, setProjects] = useState([]);
   const [approvedCerts, setApprovedCerts] = useState([]);
+  const [skills, setSkills] = useState('');
   const [saving, setSaving] = useState(false);
   const [savedOk, setSavedOk] = useState(false);
 
@@ -26,6 +27,7 @@ export default function PortfolioGen() {
       if (user.portfolioBio) setBio(user.portfolioBio);
       if (user.portfolioPhone) setPhone(user.portfolioPhone);
       if (user.portfolioLocation) setLocation(user.portfolioLocation);
+      if (user.portfolioSkills) setSkills(user.portfolioSkills);
     }
   }, [user]);
 
@@ -76,6 +78,7 @@ export default function PortfolioGen() {
         portfolioBio: bio.trim(),
         portfolioPhone: phone.trim(),
         portfolioLocation: location.trim(),
+        portfolioSkills: skills.trim(),
         lastActivity: new Date().toISOString(),
       });
       setSavedOk(true);
@@ -303,9 +306,21 @@ export default function PortfolioGen() {
       <div ref={printRef} className="print-portfolio" aria-hidden="true">
         <style>{`
           @media print {
-            body > *:not(.print-portfolio-root) { display: none !important; }
-            .print-portfolio { display: block !important; }
-            @page { margin: 20mm; }
+            /* Hide every element on the page by making it invisible */
+            body * { visibility: hidden !important; }
+            /* Make only the print portfolio and all its children visible */
+            .print-portfolio,
+            .print-portfolio * { visibility: visible !important; }
+            /* Pin the portfolio to the top-left corner of the printed page */
+            .print-portfolio {
+              position: fixed !important;
+              top: 0 !important;
+              left: 0 !important;
+              width: 100% !important;
+              background: white !important;
+              z-index: 9999 !important;
+            }
+            @page { margin: 20mm; size: A4 portrait; }
           }
           @media screen {
             .print-portfolio { display: none; }
@@ -343,11 +358,17 @@ export default function PortfolioGen() {
             </div>
           )}
 
-          {/* Skills — Mentor Verified Only */}
-          {approvedSkills.length > 0 && (
+          {/* Skills — Mentor Verified, or user-entered as fallback */}
+          {(approvedSkills.length > 0 || skills.trim()) && (
             <div style={{ marginBottom: 20 }}>
-              <h2 style={{ fontSize: 14, fontWeight: 700, color: '#10b981', textTransform: 'uppercase', letterSpacing: 1, margin: '0 0 6px' }}>Skills (Mentor-Verified)</h2>
-              <p style={{ fontSize: 13, color: '#333' }}>{approvedSkills.join(' · ')}</p>
+              <h2 style={{ fontSize: 14, fontWeight: 700, color: '#10b981', textTransform: 'uppercase', letterSpacing: 1, margin: '0 0 6px' }}>
+                {approvedSkills.length > 0 ? 'Skills (Mentor-Verified)' : 'Skills'}
+              </h2>
+              <p style={{ fontSize: 13, color: '#333' }}>
+                {approvedSkills.length > 0
+                  ? approvedSkills.join(' · ')
+                  : skills.trim()}
+              </p>
             </div>
           )}
 

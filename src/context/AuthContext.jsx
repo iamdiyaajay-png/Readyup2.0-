@@ -25,9 +25,11 @@ export const useAuth = () => {
 function mergeDecryptedUser(docData) {
   if (!docData) return docData;
 
-  let merged = { ...docData };
+  // Start with an empty base — we'll build priority bottom-up
+  let merged = {};
 
-  // Decrypt the PII envelope (name, email, photoURL) written during initial doc creation
+  // 1. Decrypt the PII envelope (name, email, photoURL from initial Google sign-in)
+  //    This is the lowest priority — it's just the fallback if nothing else is set.
   if (docData.encryptedProfile) {
     const profileData = decryptData(docData.encryptedProfile);
     if (profileData) {
@@ -35,13 +37,19 @@ function mergeDecryptedUser(docData) {
     }
   }
 
-  // Decrypt the profile details written during onboarding (college, skills, etc.)
+  // 2. Decrypt the onboarding details (college, branch, skills, etc.)
   if (docData.encryptedDetails) {
     const details = decryptData(docData.encryptedDetails);
     if (details) {
       merged = { ...merged, ...details };
     }
   }
+
+  // 3. Plain-text Firestore fields take HIGHEST priority.
+  //    This ensures that when the user edits their name (or any other field)
+  //    in the Profile page and saves it as plain text, it is never overwritten
+  //    by the encrypted Google account name from encryptedProfile.
+  merged = { ...merged, ...docData };
 
   return merged;
 }
