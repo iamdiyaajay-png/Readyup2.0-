@@ -53,11 +53,15 @@ export default function Leaderboard() {
         const querySnapshot = await getDocs(q);
         querySnapshot.forEach((doc) => {
           const data = doc.data();
+          const readiness = data.readinessScore || 0;
+          const certPts   = data.certPoints    || 0;
           studentList.push({
             uid: data.uid,
             name: data.name,
-            points: data.readinessScore || 0,
-            certPoints: data.certPoints || 0,
+            readinessScore: readiness,
+            certPoints: certPts,
+            // Combined total: readiness score + cert points
+            points: readiness + certPts,
             courses: coursesMap[data.uid] || 0,
             projects: projectsMap[data.uid] || 0,
             isReal: true
@@ -67,7 +71,7 @@ export default function Leaderboard() {
         console.error('Failed to fetch leaderboard students:', err);
       }
 
-      // Sort by points descending — only real submitted data
+      // Sort by combined total descending — only real submitted data
       studentList.sort((a, b) => b.points - a.points);
 
       // Map ranks and badges
@@ -144,10 +148,14 @@ export default function Leaderboard() {
                 {lead.badge}
               </span>
               <div className="mt-4 text-3xl font-extrabold text-brand-text-primary">{lead.points} pts</div>
+              <div className="mt-1 text-[10px] text-brand-text-muted">
+                <span className="text-brand-accent font-semibold">{lead.readinessScore}</span> Readiness
+                {' + '}
+                <span className="text-yellow-400 font-semibold">🎓 {lead.certPoints}</span> Cert
+              </div>
               <div className="flex justify-around text-[10px] text-brand-text-secondary mt-4 border-t border-brand-border/40 pt-3">
                 <span>{lead.courses} Courses</span>
                 <span>{lead.projects} Projects</span>
-                <span>🎓 {lead.certPoints || 0} Cert pts</span>
               </div>
             </div>
           ))}
@@ -161,13 +169,14 @@ export default function Leaderboard() {
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="border-b border-brand-border text-xs text-brand-text-muted font-semibold uppercase">
-                  <th className="py-3 px-4">Rank</th>
-                  <th className="py-3 px-4">Name</th>
-                  <th className="py-3 px-4">Tier Status</th>
-                  <th className="py-3 px-4 text-center">Completed Courses</th>
-                  <th className="py-3 px-4 text-center">Portfolio Projects</th>
-                  <th className="py-3 px-4 text-center">Cert Points</th>
-                  <th className="py-3 px-4 text-right">Readiness Score</th>
+                   <th className="py-3 px-4">Rank</th>
+                   <th className="py-3 px-4">Name</th>
+                   <th className="py-3 px-4">Tier Status</th>
+                   <th className="py-3 px-4 text-center">Courses</th>
+                   <th className="py-3 px-4 text-center">Projects</th>
+                   <th className="py-3 px-4 text-center">Readiness</th>
+                   <th className="py-3 px-4 text-center">Cert pts</th>
+                   <th className="py-3 px-4 text-right">Total Score</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-brand-border/40 text-xs">
@@ -191,7 +200,8 @@ export default function Leaderboard() {
                       </td>
                       <td className="py-4 px-4 text-center font-bold text-brand-text-primary">{lead.courses}</td>
                       <td className="py-4 px-4 text-center font-bold text-brand-text-primary">{lead.projects}</td>
-                      <td className="py-4 px-4 text-center font-bold text-brand-accent">🎓 {lead.certPoints || 0}</td>
+                      <td className="py-4 px-4 text-center font-bold text-brand-text-secondary">{lead.readinessScore}</td>
+                      <td className="py-4 px-4 text-center font-bold text-yellow-400">🎓 {lead.certPoints || 0}</td>
                       <td className="py-4 px-4 text-right font-extrabold text-brand-accent">{lead.points}</td>
                     </tr>
                   );
