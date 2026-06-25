@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ROUTES } from './routes';
 
@@ -114,7 +114,7 @@ export default function AppRouter() {
   if (loading) return <LoadingScreen />;
 
   return (
-    <BrowserRouter>
+    <HashRouter>
       <Routes>
         {/* ── Public Routes ─────────────────────────────── */}
         <Route path={ROUTES.LANDING} element={<LandingPage />} />
@@ -234,6 +234,6 @@ export default function AppRouter() {
         {/* ── Catch-all fallback ─────────────────────── */}
         <Route path="*" element={<Navigate to={getDashboardRedirect(user)} replace />} />
       </Routes>
-    </BrowserRouter>
+    </HashRouter>
   );
 }
