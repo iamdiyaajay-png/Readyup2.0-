@@ -4,7 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: '/Readyup2.0-/',
+  // base path removed for Vercel
   plugins: [
     react(),
     tailwindcss(),
