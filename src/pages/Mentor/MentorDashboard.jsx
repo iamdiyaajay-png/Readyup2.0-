@@ -418,22 +418,31 @@ export default function MentorDashboard() {
         </div>
         {/* Tab switcher */}
         <div className="flex items-center gap-1 bg-brand-card border border-brand-border rounded-xl p-1">
-          {[
-            { id: 'dashboard', label: 'Dashboard', icon: Activity },
-            { id: 'students',  label: `My Students (${fullStudents.length})`, icon: Users },
-          ].map(({ id, label, icon: Icon }) => (
-            <button
-              key={id}
-              onClick={() => setActiveTab(id)}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+        {[
+          { id: 'dashboard', label: 'Dashboard', icon: Activity, badge: null },
+          { id: 'students',  label: 'My Students', icon: Users, badge: fullStudents.length },
+        ].map(({ id, label, icon: Icon, badge }) => (
+          <button
+            key={id}
+            onClick={() => setActiveTab(id)}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              activeTab === id
+                ? 'bg-brand-accent text-brand-bg shadow-sm'
+                : 'text-brand-text-secondary hover:text-brand-text-primary'
+            }`}
+          >
+            <Icon size={13} /> {label}
+            {badge !== null && (
+              <span className={`ml-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-extrabold ${
                 activeTab === id
-                  ? 'bg-brand-accent text-brand-bg shadow-sm'
-                  : 'text-brand-text-secondary hover:text-brand-text-primary'
-              }`}
-            >
-              <Icon size={13} /> {label}
-            </button>
-          ))}
+                  ? 'bg-brand-bg/20 text-brand-bg'
+                  : 'bg-brand-accent/15 text-brand-accent'
+              }`}>
+                {badge}
+              </span>
+            )}
+          </button>
+        ))}
         </div>
       </div>
 
