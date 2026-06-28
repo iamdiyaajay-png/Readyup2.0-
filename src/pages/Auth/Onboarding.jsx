@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { db } from '../../firebase';
 import { doc, updateDoc } from 'firebase/firestore';
-import { GraduationCap, Briefcase, Sparkles, Send, LogOut } from 'lucide-react';
+import { GraduationCap, Briefcase, Sparkles, Send, LogOut, CheckCircle, Clock } from 'lucide-react';
 import { encryptData } from '../../services/encryption';
 import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '../../router/routes';
@@ -41,6 +41,8 @@ export default function Onboarding() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [submitted, setSubmitted] = useState(false);
+  const [countdown, setCountdown] = useState(4);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -112,6 +114,7 @@ export default function Onboarding() {
       await updateDoc(userRef, payload);
       // Clean up sessionStorage once profile is saved
       sessionStorage.removeItem('intendedRole');
+      setSubmitted(true);
     } catch (err) {
       console.error('Error during onboarding submission:', err);
       setError('Failed to save profile. Please check your network and try again.');
@@ -119,6 +122,83 @@ export default function Onboarding() {
       setLoading(false);
     }
   };
+
+  // Auto-redirect countdown after submission
+  useEffect(() => {
+    if (!submitted) return;
+    if (countdown <= 0) {
+      navigate(ROUTES.LANDING);
+      return;
+    }
+    const timer = setTimeout(() => setCountdown((c) => c - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [submitted, countdown, navigate]);
+
+  // ── Success Screen ──────────────────────────────────────────
+  if (submitted) {
+    return (
+      <div className="min-h-screen bg-brand-bg flex items-center justify-center p-6 relative overflow-hidden">
+        {/* Background glow */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-brand-accent/8 blur-[140px] pointer-events-none" />
+
+        <div className="w-full max-w-md glass-card p-10 rounded-3xl relative z-10 border border-brand-accent/20 text-center">
+          {/* Animated success icon */}
+          <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-brand-accent/10 border-2 border-brand-accent/30 text-brand-accent mb-6 mx-auto animate-bounce">
+            <CheckCircle size={40} strokeWidth={1.5} />
+          </div>
+
+          <h2 className="text-2xl font-extrabold text-brand-text-primary tracking-tight">
+            Application Submitted! 🎉
+          </h2>
+          <p className="text-sm text-brand-text-secondary mt-3 leading-relaxed">
+            Your profile has been received. We're waiting for the admin to review and accept your application.
+          </p>
+
+          {/* Status tracker */}
+          <div className="my-8 p-5 bg-brand-bg/50 border border-brand-border rounded-2xl text-left space-y-4">
+            <h4 className="text-[10px] font-bold text-brand-text-muted uppercase tracking-wider">What Happens Next</h4>
+
+            <div className="flex items-start gap-3 text-xs">
+              <CheckCircle size={16} className="text-brand-accent shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-brand-text-primary">Profile Submitted</p>
+                <p className="text-brand-text-muted text-[10px] mt-0.5">Your details are saved securely.</p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3 text-xs">
+              <Clock size={16} className="text-yellow-400 shrink-0 mt-0.5 animate-pulse" />
+              <div>
+                <p className="font-semibold text-yellow-400">Awaiting Admin Approval</p>
+                <p className="text-brand-text-muted text-[10px] mt-0.5">An admin will review your application shortly.</p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3 text-xs opacity-40">
+              <CheckCircle size={16} className="text-brand-accent shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-brand-text-secondary">Access Granted</p>
+                <p className="text-brand-text-muted text-[10px] mt-0.5">You'll be notified once approved.</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Countdown redirect */}
+          <p className="text-xs text-brand-text-muted">
+            Redirecting you to home in{' '}
+            <span className="font-bold text-brand-accent">{countdown}</span>s…
+          </p>
+
+          <button
+            onClick={() => navigate(ROUTES.LANDING)}
+            className="mt-4 w-full py-3 rounded-xl bg-brand-accent text-brand-bg font-extrabold text-sm hover:bg-brand-accent-hover transition-all cursor-pointer"
+          >
+            Go to Home Now
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-brand-bg flex items-center justify-center p-6 relative overflow-y-auto">
