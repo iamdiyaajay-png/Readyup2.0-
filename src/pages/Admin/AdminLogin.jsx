@@ -4,11 +4,8 @@ import { signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { ShieldCheck, Eye, EyeOff, Lock } from 'lucide-react';
 
-// Default admin email from environment
-const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL || 'iamdiyaajay@gmail.com';
-
 export default function AdminLogin() {
-  const [email, setEmail] = useState(ADMIN_EMAIL);
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -108,7 +105,7 @@ export default function AdminLogin() {
             </div>
           )}
 
-          <form onSubmit={handleAdminLogin} className="space-y-4">
+          <form onSubmit={handleAdminLogin} className="space-y-4" autoComplete="off">
             {/* Email */}
             <div>
               <label className="block text-xs font-semibold text-brand-text-secondary mb-1.5">
@@ -116,10 +113,12 @@ export default function AdminLogin() {
               </label>
               <input
                 id="admin-email"
-                type="email"
+                name="admin_portal_unique_email_no_autofill"
+                type="text"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                autoComplete="new-password"
                 className="w-full px-4 py-3 rounded-xl bg-brand-bg border border-brand-border text-brand-text-primary text-sm placeholder:text-brand-text-muted focus:outline-none focus:border-red-500/50 transition-colors"
                 placeholder="admin@readyup.com"
               />
@@ -140,6 +139,7 @@ export default function AdminLogin() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
+                  autoComplete="new-password"
                   className="w-full pl-9 pr-10 py-3 rounded-xl bg-brand-bg border border-brand-border text-brand-text-primary text-sm placeholder:text-brand-text-muted focus:outline-none focus:border-red-500/50 transition-colors"
                   placeholder="••••••••"
                 />

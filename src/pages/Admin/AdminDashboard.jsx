@@ -150,7 +150,12 @@ export default function AdminDashboard() {
     const unsubStudents = onSnapshot(qStudents, 
       (snapshot) => {
         const list = [];
-        snapshot.forEach((doc) => list.push(doc.data()));
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          const decrypted = data.encryptedDetails ? decryptData(data.encryptedDetails) : {};
+          const decryptedProfile = data.encryptedProfile ? decryptData(data.encryptedProfile) : {};
+          list.push({ id: doc.id, uid: doc.id, ...data, ...(decryptedProfile || {}), ...(decrypted || {}) });
+        });
         setStudents(list);
       },
       (err) => {
@@ -162,7 +167,12 @@ export default function AdminDashboard() {
     const unsubMentors = onSnapshot(qMentors, 
       (snapshot) => {
         const list = [];
-        snapshot.forEach((doc) => list.push(doc.data()));
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          const decrypted = data.encryptedDetails ? decryptData(data.encryptedDetails) : {};
+          const decryptedProfile = data.encryptedProfile ? decryptData(data.encryptedProfile) : {};
+          list.push({ id: doc.id, uid: doc.id, ...data, ...(decryptedProfile || {}), ...(decrypted || {}) });
+        });
         setMentors(list);
       },
       (err) => {
@@ -660,11 +670,14 @@ export default function AdminDashboard() {
                               className="px-3 py-2 bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text-primary focus:outline-none cursor-pointer"
                             >
                               <option value="">Unassigned</option>
-                              {mentors.map((m) => (
-                                <option key={m.uid} value={m.uid}>
-                                  {m.name} ({m.organization})
-                                </option>
-                              ))}
+                              {mentors.map((m) => {
+                                const count = students.filter(s => s.mentorId === m.uid).length;
+                                return (
+                                  <option key={m.uid} value={m.uid}>
+                                    {m.name} ({count} student{count !== 1 ? 's' : ''} assigned{m.organization ? ` • ${m.organization}` : ''})
+                                  </option>
+                                );
+                              })}
                             </select>
                             <UserPlus size={14} className="text-brand-text-muted shrink-0" />
                           </div>
