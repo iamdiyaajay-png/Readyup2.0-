@@ -1,3 +1,69 @@
+Part 1: Product Overview & Core Features
+ReadyUp 2.0 is an AI-powered student placement tracker and mentorship platform designed to streamline and improve college placement preparation. By integrating Gemini AI, it replaces subjective grading with data-driven readiness evaluation.
+
+The system features three integrated dashboard levels:
+
+1. Student Workspace
+Placement Readiness Score: A centralized percentage gauge tracking overall career readiness based on approved projects, validated certificates, and milestones.
+
+Skill Matrix: A visual dashboard tracking core developer domains (e.g., Programming, Data Science, Web Dev, DevOps, AI/ML).
+
+Portfolio Generator: A multi-step form wizard (Bio, Skills, Experience) that renders a responsive web portfolio preview and exports it instantly as a stylized, ATS-friendly single-page PDF resume.
+
+Gemini Skill Assistant: A conversational assistant tool where typing specific technical skill sets returns custom curated roadmaps, learning courses, and documentation resources.
+
+AI Resume Reviewer: Allows uploading a PDF resume for immediate structural analysis. Gemini evaluates key matching criteria and returns an instantaneous ATS Scan Score alongside specific actionable item feedback.
+
+Certificate Validator: Uses Tesseract OCR and Google Gemini to extract data from uploaded images/PDF certificates, checking authenticity against internal criteria to award points.
+
+Mock Interview Scheduler & Real-Time Messenger: Facilitates direct scheduling of specialized mock interviews and live synchronized text communication between students and their assigned mentors.
+
+2. Mentor Dashboard
+Assigned Student Feed: A live pipeline of assigned students displaying their current readiness scores, points milestones, and active logs.
+
+Interactive Review Matrix: Allows deep-dive verification of submitted student artifacts (such as certificates or projects) with dedicated automated valuation scores, metadata verification panels, and approval/rejection triggers.
+
+Course Suggestion Engine: Allows push-notifications for custom study links, technical topics, or assignment goals tailored directly into a student's workspace feed.
+
+3. Administrative Panel
+User Roles & Access Onboarding: A gated dashboard strictly for reviewing pending authorization registrations for students or mentors.
+
+Dynamic Matching Systems: A quick control system matching incoming user entries to designated career paths.
+
+System Controls: Quick triggers to purge demo/placeholder records from Firestore databases and perform full reset sync commands across all metrics trackers.
+
+
+
+the students and mentors can talk to each other via messaging
+
+
+# Google Gemini API
+VITE_GEMINI_API_KEY="your-gemini-ai-api-key"
+(Note: To get your Gemini key, visit Google AI Studio at aistudio.google.com).
+
+
+
+Step 2: Test Student Account Creation & Portfolio Creation
+Click Join Platform on the homepage landing view.
+
+Select I'm a Student and sign in securely with a Google Account.
+
+Once redirected to the dashboard space, navigate to Portfolio Gen. Fill out the professional profile, choose your technical skill blocks, and verify that the layout displays a live preview on the right.
+
+Click Download as PDF to ensure the browser print preview successfully converts it into a structural document sheet.
+
+Step 3: Verify the AI Resume & Certificate Systems
+Navigate to Resume Reviewer. Upload a test CV PDF file and select Scan Resume with Gemini. Verify that the ATS report panel successfully renders an overall matching percentage and key missing keyword highlights.
+
+Navigate to Certificates. Drag and drop an engineering certificate image. Let the internal process run (OCR Extraction -> AI Validation Assessment). Ensure that text extraction pulls names and certificate descriptions correctly.
+
+Step 4: Validate Mentor Operations & Mock Schedulers
+Log out or use an incognito tab to access the workspace as a new profile, electing I'm a Mentor during registration.
+
+Under the student view, use the Course Suggestion Engine to push custom technical targets (e.g., Dynamic Programming with a documentation hyperlink) directly into the student tracker timeline.
+
+Confirm that the Student account can successfully pick a time block using the Mock Interview Scheduler module and view real-time chat sync responses via the integrated Messages tab.
+
 
 ## Getting Started Locally
 
