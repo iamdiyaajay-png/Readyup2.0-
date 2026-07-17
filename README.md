@@ -157,7 +157,7 @@ password:diya@1234
 mentor:nihaharih2007@gmail.com
 password:Nihahari@123
 
-web link:https://readyup2-0.vercel.app
+MAIN HOSTING  link:https://readyup2-0.vercel.app
 
 Open [http://localhost:5173/](https://www.google.com/search?q=http://localhost:5173/) in your web browser to view and interact with the application. The app supports Hot Module Replacement (HMR), meaning any edits you make to code files in `src/` will instantly update in the browser.
 
