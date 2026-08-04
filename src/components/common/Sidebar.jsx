@@ -15,7 +15,8 @@ import {
   LogOut,
   UserCircle,
   Home,
-  Award
+  Award,
+  Swords,
 } from 'lucide-react';
 
 export default function Sidebar() {
@@ -40,7 +41,8 @@ export default function Sidebar() {
     { name: 'Portfolio Gen', path: ROUTES.PORTFOLIO_GEN, icon: UserCheck },
     { name: 'Gemini Assistant', path: ROUTES.SKILLS_ASSISTANT, icon: SearchCode },
     { name: 'Resume Reviewer', path: ROUTES.RESUME_REVIEWER, icon: FileText },
-    { name: 'Certificates', path: ROUTES.CERTIFICATE_VALIDATOR, icon: Award },
+    { name: 'Certificates',     path: ROUTES.CERTIFICATE_VALIDATOR, icon: Award },
+    { name: 'Debate Trainer',   path: ROUTES.DEBATE_TRAINER,        icon: Swords },
   ];
 
   const mentorLinks = [

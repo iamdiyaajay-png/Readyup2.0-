@@ -7,6 +7,7 @@ import { logCertificateValidated } from '../../services/activityLog';
 import { storeCertificateBinary } from '../../services/binaryStorageService';
 import { CERT_SCORE_CONFIG, SKILL_CATEGORIES } from '../../services/pointsService';
 import { buildChatId, sendMessage } from '../../services/chatService';
+import { encryptMessage, isE2EESupported } from '../../services/e2eeService';
 import {
   Award, Upload, CheckCircle2, XCircle, AlertCircle,
   Scan, User, BookOpen, Building, Calendar, Shield, Loader2,
@@ -234,11 +235,20 @@ export default function CertificateValidator() {
         // ── Auto-message mentor in RTDB chat ──────────────────────
         try {
           const chatId = buildChatId(user.uid, user.mentorId);
+          const certMsgText = `📄 New certificate submitted for review: "${validated.courseTitle || 'Certificate'}" — AI Score: ${evalResult.score}/5`;
+
+          // E2EE: encrypt the notification message before sending to RTDB
+          let encryptedPayload = null;
+          if (isE2EESupported() && user.uid && user.mentorId) {
+            encryptedPayload = await encryptMessage(user.uid, user.mentorId, chatId, certMsgText);
+          }
+
           await sendMessage(chatId, {
             senderId: user.uid,
             receiverId: user.mentorId,
             senderRole: 'student',
-            message: `📄 New certificate submitted for review: "${validated.courseTitle || 'Certificate'}" — AI Score: ${evalResult.score}/5`,
+            // Only store plaintext if E2EE encryption was unavailable
+            message: encryptedPayload ? '' : certMsgText,
             type: 'certificate',
             certMeta: {
               certId: certDocId,
@@ -248,6 +258,7 @@ export default function CertificateValidator() {
               studentId: user.uid,
               isSuspicious: evalResult.isSuspicious || false,
             },
+            encryptedPayload, // { ciphertext, iv } or null
           });
         } catch (chatErr) {
           console.warn('Chat auto-message failed (non-fatal):', chatErr.message);

@@ -10,6 +10,13 @@
  *   chats/{chatId}/lastMessage | lastMessageTime | participants
  *   typing/{chatId}/{userId}/isTyping | timestamp
  *   unread/{userId}/{chatId}/count
+ *
+ * E2EE NOTE:
+ *   New text messages are end-to-end encrypted BEFORE being stored here.
+ *   When encryptedPayload is provided, the 'message' field is NOT stored.
+ *   Instead, 'ciphertext', 'iv', and 'encrypted: true' are stored.
+ *   The plaintext is only reconstructed on the recipient's device.
+ *   Legacy messages (encrypted: false/undefined) use the 'message' field.
  * ─────────────────────────────────────────────────────────────────
  */
 import { rtdb } from '../firebase';
@@ -43,13 +50,18 @@ export function buildChatId(studentId, mentorId) {
  * @param {object} opts
  * @param {string} opts.senderId
  * @param {string} opts.receiverId
- * @param {string} opts.senderRole   'student' | 'mentor' | 'admin'
- * @param {string} [opts.message]    Text content
- * @param {string} [opts.type]       'text' | 'image' | 'file' | 'certificate'
+ * @param {string} opts.senderRole     'student' | 'mentor' | 'admin'
+ * @param {string} [opts.message]      Plaintext content (only used for legacy/system/non-text)
+ * @param {string} [opts.type]         'text' | 'image' | 'file' | 'certificate'
  * @param {string} [opts.attachmentUrl]
  * @param {string} [opts.fileName]
  * @param {number} [opts.fileSize]
- * @param {object} [opts.certMeta]   Extra cert fields: { certId, certName, score }
+ * @param {object} [opts.certMeta]     Extra cert fields: { certId, certName, score }
+ * @param {object} [opts.encryptedPayload]  E2EE payload: { ciphertext, iv }
+ *        When provided, ciphertext/iv are stored instead of plaintext message.
+ *        The 'message' field is omitted from the RTDB document.
+ *        Callers must encrypt BEFORE calling sendMessage — this service never
+ *        sees or logs the plaintext when encryptedPayload is supplied.
  */
 export async function sendMessage(chatId, {
   senderId,
@@ -61,6 +73,7 @@ export async function sendMessage(chatId, {
   fileName = null,
   fileSize = null,
   certMeta = null,
+  encryptedPayload = null, // { ciphertext: string, iv: string } — E2EE fields
 }) {
   if (!chatId || !senderId || !receiverId) return null;
 
@@ -72,20 +85,36 @@ export async function sendMessage(chatId, {
   //  - No { ".sv": "timestamp" } placeholder phase in the listener.
   const now = Date.now();
 
+  // Build the RTDB payload.
+  // If encryptedPayload is supplied (E2EE path): store ciphertext + iv, NOT plaintext.
+  // If not (legacy/system/attachment path): store plaintext message as before.
+  const isEncrypted = !!(encryptedPayload?.ciphertext && encryptedPayload?.iv);
+
   const payload = {
     senderId,
     receiverId,
     senderRole,
-    message,
     type,
     timestamp: now,
     isRead: false,
+    // E2EE fields — present only when message is encrypted
+    ...(isEncrypted && {
+      encrypted: true,
+      ciphertext: encryptedPayload.ciphertext,
+      iv: encryptedPayload.iv,
+    }),
+    // Plaintext field — present only when NOT encrypted (legacy / system / attachments)
+    ...(!isEncrypted && { message }),
     ...(attachmentUrl && { attachmentUrl }),
     ...(fileName && { fileName }),
     ...(fileSize && { fileSize }),
+    // certMeta is metadata (certId, score, issuer) needed for UI approve/reject buttons.
+    // It does not contain private message content, so it is stored unencrypted.
     ...(certMeta && { certMeta }),
   };
 
+  // The lastMessage preview shown in chat list.
+  // For encrypted messages we show a generic indicator rather than plaintext.
   const lastMessageText =
     type === 'certificate'
       ? `📄 ${certMeta?.certName || 'Certificate submitted'}`
@@ -93,6 +122,8 @@ export async function sendMessage(chatId, {
       ? '📷 Image'
       : type === 'file'
       ? `📎 ${fileName || 'File'}`
+      : isEncrypted
+      ? '🔒 Encrypted message'
       : message;
 
   await Promise.all([
@@ -158,23 +189,38 @@ export function listenToMessages(chatId, callback) {
 export async function markMessagesRead(chatId, userId) {
   if (!chatId || !userId) return;
 
-  const messagesRef = ref(rtdb, `messages/${chatId}`);
-  const snap = await get(messagesRef);
-  if (!snap.exists()) return;
+  // ── Step 1: Reset the unread badge counter (GUARANTEED) ─────────────────
+  // This uses a direct set() on a single path, completely independent of the
+  // messages/* rules. A failure here means the user isn't authenticated at all.
+  try {
+    await set(ref(rtdb, `unread/${userId}/${chatId}/count`), 0);
+  } catch (e) {
+    // If even this fails the user is unauthenticated — bail out entirely.
+    return;
+  }
 
-  const updates = {};
-  snap.forEach((child) => {
-    const msg = child.val();
-    if (msg.receiverId === userId && !msg.isRead) {
-      updates[`messages/${chatId}/${child.key}/isRead`] = true;
+  // ── Step 2: Mark individual messages as read (BEST-EFFORT) ───────────────
+  // Separated from the count reset so that any rule evaluation issue on the
+  // messages/* paths cannot block the badge from clearing (Step 1 already ran).
+  try {
+    const snap = await get(ref(rtdb, `messages/${chatId}`));
+    if (!snap.exists()) return;
+
+    const updates = {};
+    snap.forEach((child) => {
+      const msg = child.val();
+      if (msg.receiverId === userId && !msg.isRead) {
+        updates[`messages/${chatId}/${child.key}/isRead`] = true;
+      }
+    });
+
+    if (Object.keys(updates).length > 0) {
+      await update(ref(rtdb), updates);
     }
-  });
-
-  // Also reset unread counter
-  updates[`unread/${userId}/${chatId}/count`] = 0;
-
-  if (Object.keys(updates).length > 0) {
-    await update(ref(rtdb), updates);
+  } catch (e) {
+    // Non-fatal — the counter was already reset above.
+    // This can happen when RTDB rules block the isRead write.
+    console.warn('[Chat] markMessagesRead: isRead update skipped:', e.message);
   }
 }
 

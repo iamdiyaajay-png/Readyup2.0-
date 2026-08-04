@@ -23,6 +23,7 @@ import PortfolioGen from '../pages/Student/PortfolioGen';
 import GeminiAssistant from '../pages/Student/GeminiAssistant';
 import ResumeReviewer from '../pages/Student/ResumeReviewer';
 import CertificateValidator from '../pages/Student/CertificateValidator';
+import DebateTrainer from '../pages/Student/DebateTrainer';
 
 // Mentor Pages
 import MentorDashboard from '../pages/Mentor/MentorDashboard';
@@ -213,6 +214,10 @@ export default function AppRouter() {
           <Route
             path={ROUTES.CERTIFICATE_VALIDATOR}
             element={<RoleGuard allowedRole="student"><CertificateValidator /></RoleGuard>}
+          />
+          <Route
+            path={ROUTES.DEBATE_TRAINER}
+            element={<RoleGuard allowedRole="student"><DebateTrainer /></RoleGuard>}
           />
 
           {/* Mentor Routes */}

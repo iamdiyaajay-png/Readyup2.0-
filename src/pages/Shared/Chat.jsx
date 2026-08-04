@@ -15,6 +15,14 @@ import {
   listenToTyping,
   listenToUnreadCounts,
 } from '../../services/chatService';
+import {
+  initE2EE,
+  getSharedKey,
+  invalidateSharedKey,
+  encryptMessage,
+  decryptMessage,
+  isE2EESupported,
+} from '../../services/e2eeService';
 import { watchPresence } from '../../services/presenceService';
 import {
   Send, Smile, MoreVertical,
@@ -162,7 +170,9 @@ function CertMessageCard({ msg, isMe, onApprove, onReject, userRole, onViewCert 
   );
 }
 
-// ─── Main Component ───────────────────────────────────────────────────────────
+// ─── Main Component ────────────────────────────────────────────────────────────────
+const DECRYPTION_FAIL_MSG = '[🔒 Encrypted with a previous session key — cannot decrypt on this device]';
+
 export default function Chat() {
   const { user } = useAuth();
 
@@ -179,6 +189,11 @@ export default function Chat() {
   const [unreadMap, setUnreadMap] = useState({});
   const [searchQuery, setSearchQuery] = useState('');
   const [sendError, setSendError] = useState('');
+
+  // ── E2EE state ──────────────────────────────────────────────────────────────
+  const [e2eeReady, setE2eeReady] = useState(false);
+  const [decryptedTexts, setDecryptedTexts] = useState({});
+  const decryptingIds = useRef(new Set());
 
   // ── Cert review modal ─────────────────────────────────────────────────────
   const [reviewCert, setReviewCert] = useState(null);
@@ -212,6 +227,61 @@ export default function Chat() {
     return () => document.removeEventListener('mousedown', handle);
   }, []);
 
+  // ── E2EE: Initialise key pair ──────────────────────────────────────────────
+  useEffect(() => {
+    if (!myUid || myUid === 'me') return;
+    if (!isE2EESupported()) return;
+    initE2EE(myUid)
+      .then(() => setE2eeReady(true))
+      .catch((err) => console.warn('[E2EE] Init failed:', err.message));
+  }, [myUid]);
+
+  // ── E2EE: Derive shared key on chat switch ───────────────────────────────
+  useEffect(() => {
+    if (!e2eeReady || !chatId || !partner?.uid || !myUid) return;
+    setDecryptedTexts({});
+    decryptingIds.current.clear();
+    invalidateSharedKey(chatId);
+    getSharedKey(myUid, partner.uid, chatId).catch((err) =>
+      console.warn('[E2EE] Key pre-derivation failed:', err.message)
+    );
+  }, [chatId, e2eeReady, myUid, partner?.uid]);
+
+  // ── E2EE: Decrypt incoming encrypted messages ──────────────────────────────
+  // Messages from RTDB have flat fields: { encrypted: true, ciphertext, iv }.
+  // We decrypt each one asynchronously and cache the result in decryptedTexts.
+  useEffect(() => {
+    if (!e2eeReady || !chatId || !partner?.uid) return;
+    const partnerUid = partner.uid;
+
+    // Filter messages that are flagged as encrypted in RTDB and not yet decrypted
+    const encryptedMsgs = messages.filter(
+      (m) => m.encrypted && m.ciphertext && m.iv && !decryptingIds.current.has(m.id)
+    );
+    if (encryptedMsgs.length === 0) return;
+
+    // Mark all as queued so this effect doesn't re-trigger them
+    encryptedMsgs.forEach((m) => decryptingIds.current.add(m.id));
+
+    Promise.all(
+      encryptedMsgs.map(async (m) => {
+        // Decrypt using the flat RTDB ciphertext + iv fields
+        const plain = await decryptMessage(myUid, partnerUid, chatId, m.ciphertext, m.iv);
+        return { id: m.id, text: plain };
+      })
+    ).then((results) => {
+      setDecryptedTexts((prev) => {
+        const next = { ...prev };
+        results.forEach(({ id, text }) => {
+          // null = decryption failed (key from previous session / mismatch)
+          next[id] = text !== null ? text : DECRYPTION_FAIL_MSG;
+        });
+        return next;
+      });
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, e2eeReady, chatId]);
+
   // ── Scroll to bottom on new messages ─────────────────────────────────────
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -226,7 +296,6 @@ export default function Chat() {
     getDoc(doc(db, 'users', user.mentorId))
       .then((snap) => {
         const data = snap.exists() ? snap.data() : {};
-        // Decrypt PII if stored encrypted (encryptedProfile)
         const profile = data.encryptedProfile ? (() => { try { return JSON.parse(atob(data.encryptedProfile)); } catch { return {}; } })() : data;
         setPartner({
           uid: user.mentorId,
@@ -236,9 +305,7 @@ export default function Chat() {
         });
       })
       .catch((err) => {
-        console.warn('[Chat] Could not read mentor profile (Firestore rules):', err.message);
-        // Firestore may block cross-role reads — fall back to a minimal partner
-        // object so the student can still open the RTDB chat room.
+        console.warn('[Chat] Could not read mentor profile:', err.message);
         setPartner({
           uid: user.mentorId,
           name: 'Your Mentor',
@@ -323,7 +390,25 @@ export default function Chat() {
   useEffect(() => {
     if (!chatId || !myUid) return;
     markMessagesRead(chatId, myUid);
-  }, [chatId, myUid]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatId, myUid, messages]);
+
+  // -- 5b. Reset ALL student-chat unread counts when student list loads ------
+  // The mentor may never click on Jasmine M (or other students not currently
+  // selected), so their stale RTDB unread counter would keep the badge stuck.
+  // Resetting ALL counts on load means the badge only shows for messages that
+  // genuinely arrive AFTER the mentor opened the chat page.
+  useEffect(() => {
+    if (!myUid || students.length === 0) return;
+    students.forEach((st) => {
+      const stChatId = buildChatId(
+        st.uid,
+        user?.role === 'mentor' ? myUid : (st.mentorId || myUid)
+      );
+      markMessagesRead(stChatId, myUid);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [students, myUid]);
 
   // ── 6. RTDB: listen to partner typing ────────────────────────────────────
   useEffect(() => {
@@ -342,9 +427,24 @@ export default function Chat() {
   // ── 8. RTDB: unread counts ────────────────────────────────────────────────
   useEffect(() => {
     if (!myUid) return;
-    const unsub = listenToUnreadCounts(myUid, setUnreadMap);
+    const unsub = listenToUnreadCounts(myUid, (map) => {
+      setUnreadMap(map);
+    });
     return () => unsub();
   }, [myUid]);
+
+  // -- 9. Reactive unread-badge self-corrector --------------------------------
+  // When RTDB notifies us that the CURRENTLY OPEN chat has a non-zero unread
+  // count (e.g. from a batch-update race or stale counter), immediately reset
+  // it. This is a fail-safe on top of effects #5 and #5b so the badge never
+  // stays stuck regardless of timing or Firebase rule edge-cases.
+  useEffect(() => {
+    if (!chatId || !myUid) return;
+    if ((unreadMap[chatId] || 0) > 0) {
+      markMessagesRead(chatId, myUid);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unreadMap, chatId, myUid]);
 
   // ── Typing detection ──────────────────────────────────────────────────────
   const handleInputChange = (e) => {
@@ -372,23 +472,31 @@ export default function Chat() {
     const receiverId = user?.role === 'student' ? user.mentorId : partner.uid;
 
     try {
+      // E2EE: encrypt the message locally BEFORE sending to RTDB
+      // encryptMessage returns null if partner has no E2EE key yet (graceful fallback)
+      let encryptedPayload = null;
+      if (e2eeReady && isE2EESupported() && partner?.uid) {
+        encryptedPayload = await encryptMessage(myUid, partner.uid, chatId, text);
+      }
+
       await sendMessage(chatId, {
         senderId: myUid,
         receiverId,
         senderRole: user?.role || 'student',
-        message: text,
+        // Only pass plaintext when E2EE encryption was unavailable
+        message: encryptedPayload ? '' : text,
         type: 'text',
+        encryptedPayload, // { ciphertext, iv } or null
       });
     } catch (err) {
-      console.error('[Chat] sendMessage failed:', err);
-      // Restore text so the user doesn't lose their message
+      // Log error metadata only, never message content
+      console.error('[Chat] sendMessage failed:', err?.code || err?.message);
       setInputText(text);
       setSendError(
         err?.code === 'PERMISSION_DENIED'
           ? 'Chat unavailable — Realtime Database not enabled. See console.'
           : 'Failed to send message. Please try again.'
       );
-      // Auto-clear error after 5s
       setTimeout(() => setSendError(''), 5000);
     }
   };
@@ -422,15 +530,22 @@ export default function Chat() {
 
     const receiverId = partner?.uid;
     if (chatId && receiverId) {
+      const approvalText = `✅ Certificate "${meta.certName || ''}" approved!`;
+      // E2EE: encrypt the approval message before sending
+      let encryptedPayload = null;
+      if (e2eeReady && isE2EESupported() && partner?.uid) {
+        encryptedPayload = await encryptMessage(myUid, partner.uid, chatId, approvalText);
+      }
       await sendMessage(chatId, {
         senderId: myUid,
         receiverId,
         senderRole: user?.role,
-        message: `✅ Certificate "${meta.certName || ''}" approved!`,
+        message: encryptedPayload ? '' : approvalText,
         type: 'text',
+        encryptedPayload,
       });
     }
-  }, [chatId, myUid, partner, user]);
+  }, [chatId, myUid, partner, user, e2eeReady]);
 
   const handleCertReject = useCallback(async (meta) => {
     if (!meta?.certId) return;
@@ -444,15 +559,22 @@ export default function Chat() {
 
     const receiverId = partner?.uid;
     if (chatId && receiverId) {
+      const rejectText = `❌ Certificate "${meta.certName || ''}" needs revision. Please re-upload with corrections.`;
+      // E2EE: encrypt the rejection message before sending
+      let encryptedPayload = null;
+      if (e2eeReady && isE2EESupported() && partner?.uid) {
+        encryptedPayload = await encryptMessage(myUid, partner.uid, chatId, rejectText);
+      }
       await sendMessage(chatId, {
         senderId: myUid,
         receiverId,
         senderRole: user?.role,
-        message: `❌ Certificate "${meta.certName || ''}" needs revision. Please re-upload with corrections.`,
+        message: encryptedPayload ? '' : rejectText,
         type: 'text',
+        encryptedPayload,
       });
     }
-  }, [chatId, myUid, partner, user]);
+  }, [chatId, myUid, partner, user, e2eeReady]);
 
   // ── Open full CertReviewModal — fetch certPending doc + reconstruct image ─
   const handleViewCert = useCallback(async (certId) => {
@@ -734,9 +856,32 @@ export default function Chat() {
                         )}
 
                         {/* Text message */}
-                        {(!msg.type || msg.type === 'text') && msg.message && (
+                        {(!msg.type || msg.type === 'text') && (
                           <p className="px-3 pt-2 pb-5 whitespace-pre-wrap break-words leading-relaxed text-[13px]">
-                            {msg.message}
+                            {(() => {
+                              // E2EE: encrypted message — show decrypted text from state map
+                              if (msg.encrypted) {
+                                const decrypted = decryptedTexts[msg.id];
+                                if (decrypted === undefined) {
+                                  // Still decrypting
+                                  return (
+                                    <span className="text-white/40 italic text-[11px]">
+                                      🔒 Decrypting…
+                                    </span>
+                                  );
+                                }
+                                if (decrypted === DECRYPTION_FAIL_MSG) {
+                                  return (
+                                    <span className="text-white/30 italic text-[11px]">
+                                      {DECRYPTION_FAIL_MSG}
+                                    </span>
+                                  );
+                                }
+                                return decrypted;
+                              }
+                              // Legacy plaintext message (no encryption flag)
+                              return msg.message || null;
+                            })()}
                           </p>
                         )}
 
