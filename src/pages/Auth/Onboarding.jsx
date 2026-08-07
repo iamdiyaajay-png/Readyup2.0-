@@ -1,0 +1,473 @@
+import { useState, useEffect } from 'react';
+import { useAuth } from '../../context/AuthContext';
+import { db } from '../../firebase';
+import { doc, updateDoc } from 'firebase/firestore';
+import { GraduationCap, Briefcase, Sparkles, Send, LogOut, CheckCircle, Clock } from 'lucide-react';
+import { encryptData } from '../../services/encryption';
+import { useNavigate } from 'react-router-dom';
+import { ROUTES } from '../../router/routes';
+
+
+export default function Onboarding() {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  // Auto-select role from user's Firestore intendedRole, then sessionStorage fallback
+  const savedIntendedRole = user?.intendedRole || sessionStorage.getItem('intendedRole') || 'student';
+  const [role, setRole] = useState(savedIntendedRole === 'mentor' ? 'mentor' : 'student');
+
+  // URL validator — handles URLs with spaces or special chars (e.g. LinkedIn share links)
+  const isValidUrl = (url) => {
+    if (!url) return true; // optional field — skip empty
+    try { new URL(url.trim().replace(/ /g, '%20')); return true; } catch { return false; }
+  };
+
+  // Common Fields
+  const [name, setName] = useState(user?.name || '');
+  const [linkedIn, setLinkedIn] = useState('');
+
+  // Student Fields
+  const [college, setCollege] = useState('');
+  const [branch, setBranch] = useState('');
+  const [year, setYear] = useState('3rd Year');
+  const [skills, setSkills] = useState('');
+  const [gitHub, setGitHub] = useState('');
+
+  // Mentor Fields
+  const [organization, setOrganization] = useState('');
+  const [designation, setDesignation] = useState('');
+  const [experience, setExperience] = useState('');
+  const [expertiseAreas, setExpertiseAreas] = useState('');
+
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [submitted, setSubmitted] = useState(false);
+  const [countdown, setCountdown] = useState(4);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!name.trim()) {
+      setError('Name is required.');
+      return;
+    }
+
+    // URL validation
+    if (role === 'student') {
+      if (gitHub && !isValidUrl(gitHub)) {
+        setError('GitHub URL is not valid. It must start with https://');
+        return;
+      }
+    }
+    if (linkedIn && !isValidUrl(linkedIn)) {
+      setError('LinkedIn URL is not valid. It must start with https://');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const userRef = doc(db, 'users', user.uid);
+      const isStudent = role === 'student';
+
+      // Sensitive form data — will be AES-encrypted before writing to Firestore
+      const sensitiveDetails = isStudent
+        ? {
+            college: college.trim(),
+            branch: branch.trim(),
+            year,
+            skills: skills.split(',').map((s) => s.trim()).filter(Boolean),
+            linkedIn: linkedIn.trim(),
+            gitHub: gitHub.trim(),
+          }
+        : {
+            organization: organization.trim(),
+            designation: designation.trim(),
+            experience: parseInt(experience, 10) || 0,
+            linkedIn: linkedIn.trim(),
+            expertiseAreas: expertiseAreas.split(',').map((s) => s.trim()).filter(Boolean),
+          };
+
+      // Encrypt sensitive data before writing
+      const encryptedDetails = encryptData(sensitiveDetails);
+
+      // Non-sensitive fields remain in plaintext for querying/routing
+      // NOTE: `role` is intentionally NOT set here — the user doc starts as role:'pending'
+      // and the admin sets the final role (student/mentor) when approving the request.
+      // Writing `role` here would be blocked by Firestore security rules.
+      const payload = {
+        intendedRole: isStudent ? 'student' : 'mentor', // admin reads this to know what role to grant
+        // NOTE: 'status' is intentionally omitted — Firestore rules block users from writing it.
+        // The initial status:'pending' is set during account creation and managed by admins only.
+        name: name.trim(),
+        encryptedDetails, // ciphertext of sensitive form fields
+        profileCompletion: 100,
+        readinessScore: 0,
+        mentorAssigned: false,
+        lastActivity: new Date().toISOString(),
+      };
+
+      await updateDoc(userRef, payload);
+      // Clean up sessionStorage once profile is saved
+      sessionStorage.removeItem('intendedRole');
+      setSubmitted(true);
+    } catch (err) {
+      console.error('Error during onboarding submission:', err);
+      setError('Failed to save profile. Please check your network and try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Auto-redirect countdown after submission
+  useEffect(() => {
+    if (!submitted) return;
+    if (countdown <= 0) {
+      navigate(ROUTES.LANDING);
+      return;
+    }
+    const timer = setTimeout(() => setCountdown((c) => c - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [submitted, countdown, navigate]);
+
+  // ── Success Screen ──────────────────────────────────────────
+  if (submitted) {
+    return (
+      <div className="min-h-screen bg-brand-bg flex items-center justify-center p-6 relative overflow-hidden">
+        {/* Background glow */}
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-brand-accent/8 blur-[140px] pointer-events-none" />
+
+        <div className="w-full max-w-md glass-card p-10 rounded-3xl relative z-10 border border-brand-accent/20 text-center">
+          {/* Animated success icon */}
+          <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-brand-accent/10 border-2 border-brand-accent/30 text-brand-accent mb-6 mx-auto animate-bounce">
+            <CheckCircle size={40} strokeWidth={1.5} />
+          </div>
+
+          <h2 className="text-2xl font-extrabold text-brand-text-primary tracking-tight">
+            Application Submitted! 🎉
+          </h2>
+          <p className="text-sm text-brand-text-secondary mt-3 leading-relaxed">
+            Your profile has been received. We're waiting for the admin to review and accept your application.
+          </p>
+
+          {/* Status tracker */}
+          <div className="my-8 p-5 bg-brand-bg/50 border border-brand-border rounded-2xl text-left space-y-4">
+            <h4 className="text-[10px] font-bold text-brand-text-muted uppercase tracking-wider">What Happens Next</h4>
+
+            <div className="flex items-start gap-3 text-xs">
+              <CheckCircle size={16} className="text-brand-accent shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-brand-text-primary">Profile Submitted</p>
+                <p className="text-brand-text-muted text-[10px] mt-0.5">Your details are saved securely.</p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3 text-xs">
+              <Clock size={16} className="text-yellow-400 shrink-0 mt-0.5 animate-pulse" />
+              <div>
+                <p className="font-semibold text-yellow-400">Awaiting Admin Approval</p>
+                <p className="text-brand-text-muted text-[10px] mt-0.5">An admin will review your application shortly.</p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-3 text-xs opacity-40">
+              <CheckCircle size={16} className="text-brand-accent shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-brand-text-secondary">Access Granted</p>
+                <p className="text-brand-text-muted text-[10px] mt-0.5">You'll be notified once approved.</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Countdown redirect */}
+          <p className="text-xs text-brand-text-muted">
+            Redirecting you to home in{' '}
+            <span className="font-bold text-brand-accent">{countdown}</span>s…
+          </p>
+
+          <button
+            onClick={() => navigate(ROUTES.LANDING)}
+            className="mt-4 w-full py-3 rounded-xl bg-brand-accent text-brand-bg font-extrabold text-sm hover:bg-brand-accent-hover transition-all cursor-pointer"
+          >
+            Go to Home Now
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-brand-bg flex items-center justify-center p-6 relative overflow-y-auto">
+      {/* Background glow */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-brand-accent/5 blur-[120px] pointer-events-none"></div>
+
+      <div className="w-full max-w-2xl glass-card p-8 sm:p-10 rounded-3xl relative z-10 border border-brand-border my-8">
+        <div className="flex justify-between items-center mb-6">
+          <div className="inline-flex items-center gap-2 bg-brand-accent-light px-3 py-1 rounded-full border border-brand-accent/20">
+            <Sparkles size={14} className="text-brand-accent" />
+            <span className="text-xs font-semibold text-brand-accent tracking-wider uppercase">Onboarding</span>
+          </div>
+          <button
+            onClick={async () => { await logout(); navigate(ROUTES.LANDING); }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-brand-border text-xs font-semibold text-red-400 hover:bg-red-950/20 hover:text-red-300 transition-all cursor-pointer"
+          >
+            <LogOut size={12} />
+            <span>Sign Out</span>
+          </button>
+        </div>
+
+        <div className="text-center mb-8">
+          <h2 className="text-3xl font-extrabold text-brand-text-primary tracking-tight">Complete Your Profile</h2>
+          <p className="text-xs text-brand-text-secondary mt-2">
+            Select your account path to finalize your registration for ReadyUp 2.0.
+          </p>
+        </div>
+
+        {error && (
+          <div className="mb-6 p-4 rounded-xl bg-red-950/20 border border-red-900/30 text-red-400 text-xs font-medium text-center">
+            {error}
+          </div>
+        )}
+
+        {/* Role Selector Cards */}
+        <div className="grid grid-cols-2 gap-4 mb-8">
+          <button
+            type="button"
+            onClick={() => setRole('student')}
+            className={`p-6 rounded-2xl border flex flex-col items-center justify-center gap-3 transition-all cursor-pointer ${
+              role === 'student'
+                ? 'bg-brand-accent-light/10 border-brand-accent text-brand-text-primary'
+                : 'bg-brand-card/40 border-brand-border hover:border-brand-text-muted text-brand-text-secondary'
+            }`}
+          >
+            <div className={`p-3 rounded-xl ${role === 'student' ? 'bg-brand-accent/20 text-brand-accent' : 'bg-brand-bg text-brand-text-muted'}`}>
+              <GraduationCap size={24} />
+            </div>
+            <div className="text-center">
+              <span className="font-bold text-sm block">Student</span>
+              <span className="text-[10px] opacity-75 mt-0.5 block">Join as candidate</span>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setRole('mentor')}
+            className={`p-6 rounded-2xl border flex flex-col items-center justify-center gap-3 transition-all cursor-pointer ${
+              role === 'mentor'
+                ? 'bg-indigo-500/10 border-indigo-500 text-brand-text-primary'
+                : 'bg-brand-card/40 border-brand-border hover:border-brand-text-muted text-brand-text-secondary'
+            }`}
+          >
+            <div className={`p-3 rounded-xl ${role === 'mentor' ? 'bg-indigo-500/20 text-indigo-400' : 'bg-brand-bg text-brand-text-muted'}`}>
+              <Briefcase size={24} />
+            </div>
+            <div className="text-center">
+              <span className="font-bold text-sm block">Mentor</span>
+              <span className="text-[10px] opacity-75 mt-0.5 block">Join as industry guide</span>
+            </div>
+          </button>
+        </div>
+
+        {/* Dynamic Form */}
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            {/* Full Name */}
+            <div className="space-y-1.5 sm:col-span-2">
+              <label className="text-[10px] font-bold text-brand-text-secondary uppercase tracking-wider block">
+                Full Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full px-4 py-3 bg-brand-bg/50 border border-brand-border rounded-xl text-sm focus:outline-none focus:border-brand-accent text-brand-text-primary"
+                placeholder="e.g. John Doe"
+                required
+              />
+            </div>
+
+            {role === 'student' ? (
+              <>
+                {/* Student specific fields */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-brand-text-secondary uppercase tracking-wider block">
+                    College / University <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={college}
+                    onChange={(e) => setCollege(e.target.value)}
+                    className="w-full px-4 py-3 bg-brand-bg/50 border border-brand-border rounded-xl text-sm focus:outline-none focus:border-brand-accent text-brand-text-primary"
+                    placeholder="e.g. Stanford University"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-brand-text-secondary uppercase tracking-wider block">
+                    Branch / Specialization <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={branch}
+                    onChange={(e) => setBranch(e.target.value)}
+                    className="w-full px-4 py-3 bg-brand-bg/50 border border-brand-border rounded-xl text-sm focus:outline-none focus:border-brand-accent text-brand-text-primary"
+                    placeholder="e.g. Computer Science"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-brand-text-secondary uppercase tracking-wider block">
+                    Academic Year
+                  </label>
+                  <select
+                    value={year}
+                    onChange={(e) => setYear(e.target.value)}
+                    className="w-full px-4 py-3 bg-brand-bg/50 border border-brand-border rounded-xl text-sm focus:outline-none focus:border-brand-accent text-brand-text-primary"
+                  >
+                    <option value="1st Year">1st Year</option>
+                    <option value="2nd Year">2nd Year</option>
+                    <option value="3rd Year">3rd Year</option>
+                    <option value="4th Year">4th Year</option>
+                    <option value="Postgraduate">Postgraduate</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-brand-text-secondary uppercase tracking-wider block">
+                    GitHub Profile Link
+                    <span className="ml-1 text-brand-text-muted font-normal normal-case">(optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={gitHub}
+                    onChange={(e) => setGitHub(e.target.value)}
+                    className={`w-full px-4 py-3 bg-brand-bg/50 border rounded-xl text-sm focus:outline-none text-brand-text-primary ${
+                      gitHub && !isValidUrl(gitHub) ? 'border-red-500 focus:border-red-500' : 'border-brand-border focus:border-brand-accent'
+                    }`}
+                    placeholder="https://github.com/username"
+                  />
+                  {gitHub && !isValidUrl(gitHub) && (
+                    <p className="text-red-400 text-[10px] mt-0.5">⚠ Must be a valid URL starting with https://</p>
+                  )}
+                </div>
+
+                <div className="space-y-1.5 sm:col-span-2">
+                  <label className="text-[10px] font-bold text-brand-text-secondary uppercase tracking-wider block">
+                    Skills (Comma Separated) <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={skills}
+                    onChange={(e) => setSkills(e.target.value)}
+                    className="w-full px-4 py-3 bg-brand-bg/50 border border-brand-border rounded-xl text-sm focus:outline-none focus:border-brand-accent text-brand-text-primary"
+                    placeholder="e.g. React, Node.js, Python, CSS"
+                    required
+                  />
+                </div>
+
+
+              </>
+            ) : (
+              <>
+                {/* Mentor specific fields */}
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-brand-text-secondary uppercase tracking-wider block">
+                    Current Organization <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={organization}
+                    onChange={(e) => setOrganization(e.target.value)}
+                    className="w-full px-4 py-3 bg-brand-bg/50 border border-brand-border rounded-xl text-sm focus:outline-none focus:border-brand-accent text-brand-text-primary"
+                    placeholder="e.g. Google, Meta"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-brand-text-secondary uppercase tracking-wider block">
+                    Job Designation <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={designation}
+                    onChange={(e) => setDesignation(e.target.value)}
+                    className="w-full px-4 py-3 bg-brand-bg/50 border border-brand-border rounded-xl text-sm focus:outline-none focus:border-brand-accent text-brand-text-primary"
+                    placeholder="e.g. Senior Software Engineer"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-brand-text-secondary uppercase tracking-wider block">
+                    Years of Experience <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={experience}
+                    onChange={(e) => setExperience(e.target.value)}
+                    className="w-full px-4 py-3 bg-brand-bg/50 border border-brand-border rounded-xl text-sm focus:outline-none focus:border-brand-accent text-brand-text-primary"
+                    placeholder="e.g. 5"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1.5 sm:col-span-2">
+                  <label className="text-[10px] font-bold text-brand-text-secondary uppercase tracking-wider block">
+                    Areas of Expertise (Comma Separated) <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={expertiseAreas}
+                    onChange={(e) => setExpertiseAreas(e.target.value)}
+                    className="w-full px-4 py-3 bg-brand-bg/50 border border-brand-border rounded-xl text-sm focus:outline-none focus:border-brand-accent text-brand-text-primary"
+                    placeholder="e.g. System Design, Web Dev, Mobile apps"
+                    required
+                  />
+                </div>
+              </>
+            )}
+
+            {/* LinkedIn Profile URL */}
+            <div className="space-y-1.5 sm:col-span-2">
+              <label className="text-[10px] font-bold text-brand-text-secondary uppercase tracking-wider block">
+                LinkedIn Profile URL <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={linkedIn}
+                onChange={(e) => setLinkedIn(e.target.value)}
+                className={`w-full px-4 py-3 bg-brand-bg/50 border rounded-xl text-sm focus:outline-none text-brand-text-primary ${
+                  linkedIn && !isValidUrl(linkedIn) ? 'border-red-500 focus:border-red-500' : 'border-brand-border focus:border-brand-accent'
+                }`}
+                placeholder="https://linkedin.com/in/username"
+                required
+              />
+              {linkedIn && !isValidUrl(linkedIn) && (
+                <p className="text-red-400 text-[10px] mt-0.5">⚠ Must be a valid URL starting with https://</p>
+              )}
+              <p className="text-brand-text-muted text-[10px] mt-0.5">Paste your full LinkedIn profile or share URL.</p>
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-brand-accent text-brand-bg font-extrabold text-sm hover:bg-brand-accent-hover transition-all shadow-lg shadow-brand-accent/20 cursor-pointer disabled:opacity-50 mt-6"
+          >
+            {loading ? (
+              <div className="w-5 h-5 rounded-full border-2 border-brand-bg/25 border-t-brand-bg animate-spin"></div>
+            ) : (
+              <>
+                <Send size={16} />
+                <span>Submit Profile for Verification</span>
+              </>
+            )}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
