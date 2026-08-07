@@ -9,7 +9,11 @@ export default function LandingPage() {
   // Resolve where a logged-in user's dashboard is
   const getDashboardRoute = () => {
     if (!user) return ROUTES.LOGIN;
-    if (user.role === 'pending') return ROUTES.ONBOARDING;
+    // If role is pending, check if they finished onboarding
+    if (user.role === 'pending') {
+      if (user.profileCompletion === 100) return ROUTES.WAITING_APPROVAL;
+      return ROUTES.ONBOARDING;
+    }
     if (user.status === 'pending' || user.status === 'info_requested') return ROUTES.WAITING_APPROVAL;
     if (user.role === 'admin') return ROUTES.ADMIN_DASHBOARD;
     if (user.role === 'mentor') return ROUTES.MENTOR_DASHBOARD;

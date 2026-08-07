@@ -23,7 +23,7 @@ import PortfolioGen from '../pages/Student/PortfolioGen';
 import GeminiAssistant from '../pages/Student/GeminiAssistant';
 import ResumeReviewer from '../pages/Student/ResumeReviewer';
 import CertificateValidator from '../pages/Student/CertificateValidator';
-import DebateTrainer from '../pages/Student/DebateTrainer';
+
 
 // Mentor Pages
 import MentorDashboard from '../pages/Mentor/MentorDashboard';
@@ -56,7 +56,10 @@ function AuthGuard({ children }) {
 
   if (!user) return <Navigate to={ROUTES.LOGIN} replace />;
 
-  if (user.role === 'pending') return <Navigate to={ROUTES.ONBOARDING} replace />;
+  if (user.role === 'pending') {
+    if (user.profileCompletion === 100) return <Navigate to={ROUTES.WAITING_APPROVAL} replace />;
+    return <Navigate to={ROUTES.ONBOARDING} replace />;
+  }
 
   if (user.status === 'pending' || user.status === 'info_requested') {
     return <Navigate to={ROUTES.WAITING_APPROVAL} replace />;
@@ -100,7 +103,10 @@ function RoleGuard({ allowedRole, children }) {
 // ── Redirect helper for authenticated users visiting auth pages ─
 function getDashboardRedirect(user) {
   if (!user) return ROUTES.LANDING;
-  if (user.role === 'pending') return ROUTES.ONBOARDING;
+  if (user.role === 'pending') {
+    if (user.profileCompletion === 100) return ROUTES.WAITING_APPROVAL;
+    return ROUTES.ONBOARDING;
+  }
   if (user.status === 'pending' || user.status === 'info_requested') return ROUTES.WAITING_APPROVAL;
   if (user.role === 'admin') return ROUTES.ADMIN_DASHBOARD;
   if (user.role === 'mentor') return ROUTES.MENTOR_DASHBOARD;
@@ -139,7 +145,7 @@ export default function AppRouter() {
           element={
             !user ? (
               <Navigate to={ROUTES.SIGNUP} replace />
-            ) : user.role !== 'pending' ? (
+            ) : (user.role !== 'pending' || user.profileCompletion === 100) ? (
               <Navigate to={getDashboardRedirect(user)} replace />
             ) : (
               <Onboarding />
@@ -215,10 +221,7 @@ export default function AppRouter() {
             path={ROUTES.CERTIFICATE_VALIDATOR}
             element={<RoleGuard allowedRole="student"><CertificateValidator /></RoleGuard>}
           />
-          <Route
-            path={ROUTES.DEBATE_TRAINER}
-            element={<RoleGuard allowedRole="student"><DebateTrainer /></RoleGuard>}
-          />
+
 
           {/* Mentor Routes */}
           <Route

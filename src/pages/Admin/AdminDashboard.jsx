@@ -37,6 +37,7 @@ import {
 } from 'lucide-react';
 import { decryptData } from '../../services/encryption';
 import { purgeAllDemoData } from '../../services/purgeService';
+import { sendApprovalEmail } from '../../services/emailService';
 
 export default function AdminDashboard() {
   const { logout } = useAuth();
@@ -106,6 +107,9 @@ export default function AdminDashboard() {
   const [showInfoForm, setShowInfoForm] = useState({});
   const [newAdminEmail, setNewAdminEmail] = useState('');
   const [assignmentSuccess, setAssignmentSuccess] = useState('');
+
+  // Email send feedback: { [userId]: 'sent' | 'skipped' | 'error' }
+  const [emailStatus, setEmailStatus] = useState({});
 
   // 1. Fetch pending approvals (role !== 'pending', status in pending/info_requested)
   useEffect(() => {
@@ -256,10 +260,11 @@ export default function AdminDashboard() {
   // Action handlers
   const handleApprove = async (userId) => {
     try {
-      // Find the user to get their intendedRole
+      // Find the user to get their intendedRole, name, and email
       const userSnap = await getDoc(doc(db, 'users', userId));
       if (!userSnap.exists()) return;
       const userData = userSnap.data();
+
       // Grant the role the user requested during onboarding
       const grantedRole = userData.intendedRole || 'student';
       await updateDoc(doc(db, 'users', userId), {
@@ -267,6 +272,18 @@ export default function AdminDashboard() {
         status: 'approved',
         lastActivity: new Date().toISOString()
       });
+
+      // ── Send welcome email (fire-and-forget; never blocks approval) ──
+      const userEmail = userData.email || userData.emailAddress || null;
+      const userName  = userData.name  || 'there';
+      if (userEmail) {
+        sendApprovalEmail({ toEmail: userEmail, toName: userName, role: grantedRole })
+          .then(() => setEmailStatus((prev) => ({ ...prev, [userId]: 'sent' })))
+          .catch(() => setEmailStatus((prev) => ({ ...prev, [userId]: 'error' })));
+      } else {
+        // Email not stored in Firestore doc — skipped silently
+        setEmailStatus((prev) => ({ ...prev, [userId]: 'skipped' }));
+      }
     } catch (err) {
       console.error('Failed to approve user:', err);
     }
@@ -581,28 +598,48 @@ export default function AdminDashboard() {
                           </div>
                         </div>
                       ) : (
-                        <div className="flex gap-2 border-t border-brand-border/60 pt-3">
-                          <button
-                            onClick={() => handleApprove(applicant.uid)}
-                            className="flex-1 flex items-center justify-center gap-1 py-2 rounded-xl bg-brand-accent text-brand-bg text-xs font-bold hover:bg-brand-accent-hover transition-colors cursor-pointer"
-                          >
-                            <Check size={14} />
-                            <span>Approve</span>
-                          </button>
-                          <button
-                            onClick={() => setShowInfoForm((prev) => ({ ...prev, [applicant.uid]: true }))}
-                            className="px-3 py-2 rounded-xl border border-brand-border text-brand-text-secondary hover:text-yellow-500 text-xs font-semibold hover:border-yellow-900/30 transition-colors cursor-pointer"
-                          >
-                            Ask Info
-                          </button>
-                          <button
-                            onClick={() => handleReject(applicant.uid)}
-                            className="p-2 rounded-xl border border-brand-border text-red-400 hover:bg-red-950/20 hover:border-red-900/30 transition-colors cursor-pointer"
-                          >
-                            <X size={14} />
-                          </button>
+                        <div className="space-y-2 border-t border-brand-border/60 pt-3">
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleApprove(applicant.uid)}
+                              className="flex-1 flex items-center justify-center gap-1 py-2 rounded-xl bg-brand-accent text-brand-bg text-xs font-bold hover:bg-brand-accent-hover transition-colors cursor-pointer"
+                            >
+                              <Check size={14} />
+                              <span>Approve</span>
+                            </button>
+                            <button
+                              onClick={() => setShowInfoForm((prev) => ({ ...prev, [applicant.uid]: true }))}
+                              className="px-3 py-2 rounded-xl border border-brand-border text-brand-text-secondary hover:text-yellow-500 text-xs font-semibold hover:border-yellow-900/30 transition-colors cursor-pointer"
+                            >
+                              Ask Info
+                            </button>
+                            <button
+                              onClick={() => handleReject(applicant.uid)}
+                              className="p-2 rounded-xl border border-brand-border text-red-400 hover:bg-red-950/20 hover:border-red-900/30 transition-colors cursor-pointer"
+                            >
+                              <X size={14} />
+                            </button>
+                          </div>
+
+                          {/* Email send feedback badge */}
+                          {emailStatus[applicant.uid] === 'sent' && (
+                            <p className="text-[10px] text-emerald-400 font-semibold text-center animate-fade-in">
+                              📧 Welcome email sent to {applicant.email}
+                            </p>
+                          )}
+                          {emailStatus[applicant.uid] === 'skipped' && (
+                            <p className="text-[10px] text-yellow-500 font-semibold text-center animate-fade-in">
+                              ⚠ No email address found — email skipped
+                            </p>
+                          )}
+                          {emailStatus[applicant.uid] === 'error' && (
+                            <p className="text-[10px] text-red-400 font-semibold text-center animate-fade-in">
+                              ✗ Email delivery failed — check EmailJS config
+                            </p>
+                          )}
                         </div>
                       )}
+
                     </div>
                   </div>
                 ))}

@@ -15,10 +15,10 @@ export default function Onboarding() {
   const savedIntendedRole = user?.intendedRole || sessionStorage.getItem('intendedRole') || 'student';
   const [role, setRole] = useState(savedIntendedRole === 'mentor' ? 'mentor' : 'student');
 
-  // URL validator
+  // URL validator — handles URLs with spaces or special chars (e.g. LinkedIn share links)
   const isValidUrl = (url) => {
     if (!url) return true; // optional field — skip empty
-    try { new URL(url); return true; } catch { return false; }
+    try { new URL(url.trim().replace(/ /g, '%20')); return true; } catch { return false; }
   };
 
   // Common Fields
@@ -31,7 +31,6 @@ export default function Onboarding() {
   const [year, setYear] = useState('3rd Year');
   const [skills, setSkills] = useState('');
   const [gitHub, setGitHub] = useState('');
-  const [resumeUrl, setResumeUrl] = useState('');
 
   // Mentor Fields
   const [organization, setOrganization] = useState('');
@@ -57,10 +56,6 @@ export default function Onboarding() {
         setError('GitHub URL is not valid. It must start with https://');
         return;
       }
-      if (resumeUrl && !isValidUrl(resumeUrl)) {
-        setError('Resume URL is not valid. Use a full URL starting with https://');
-        return;
-      }
     }
     if (linkedIn && !isValidUrl(linkedIn)) {
       setError('LinkedIn URL is not valid. It must start with https://');
@@ -83,7 +78,6 @@ export default function Onboarding() {
             skills: skills.split(',').map((s) => s.trim()).filter(Boolean),
             linkedIn: linkedIn.trim(),
             gitHub: gitHub.trim(),
-            resumeUrl: resumeUrl.trim(),
           }
         : {
             organization: organization.trim(),
@@ -102,7 +96,8 @@ export default function Onboarding() {
       // Writing `role` here would be blocked by Firestore security rules.
       const payload = {
         intendedRole: isStudent ? 'student' : 'mentor', // admin reads this to know what role to grant
-        status: 'pending',
+        // NOTE: 'status' is intentionally omitted — Firestore rules block users from writing it.
+        // The initial status:'pending' is set during account creation and managed by admins only.
         name: name.trim(),
         encryptedDetails, // ciphertext of sensitive form fields
         profileCompletion: 100,
@@ -371,24 +366,7 @@ export default function Onboarding() {
                   />
                 </div>
 
-                <div className="space-y-1.5 sm:col-span-2">
-                  <label className="text-[10px] font-bold text-brand-text-secondary uppercase tracking-wider block">
-                    Resume Link (Google Drive, Dropbox, etc.) <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={resumeUrl}
-                    onChange={(e) => setResumeUrl(e.target.value)}
-                    className={`w-full px-4 py-3 bg-brand-bg/50 border rounded-xl text-sm focus:outline-none text-brand-text-primary ${
-                      resumeUrl && !isValidUrl(resumeUrl) ? 'border-red-500 focus:border-red-500' : 'border-brand-border focus:border-brand-accent'
-                    }`}
-                    placeholder="https://drive.google.com/..."
-                    required
-                  />
-                  {resumeUrl && !isValidUrl(resumeUrl) && (
-                    <p className="text-red-400 text-[10px] mt-0.5">⚠ Must be a valid URL starting with https://</p>
-                  )}
-                </div>
+
               </>
             ) : (
               <>
@@ -470,6 +448,7 @@ export default function Onboarding() {
               {linkedIn && !isValidUrl(linkedIn) && (
                 <p className="text-red-400 text-[10px] mt-0.5">⚠ Must be a valid URL starting with https://</p>
               )}
+              <p className="text-brand-text-muted text-[10px] mt-0.5">Paste your full LinkedIn profile or share URL.</p>
             </div>
           </div>
 

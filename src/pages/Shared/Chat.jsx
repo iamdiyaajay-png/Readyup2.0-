@@ -14,6 +14,7 @@ import {
   setTyping,
   listenToTyping,
   listenToUnreadCounts,
+  deleteMessage,
 } from '../../services/chatService';
 import {
   initE2EE,
@@ -171,7 +172,7 @@ function CertMessageCard({ msg, isMe, onApprove, onReject, userRole, onViewCert 
 }
 
 // ─── Main Component ────────────────────────────────────────────────────────────────
-const DECRYPTION_FAIL_MSG = '[🔒 Encrypted with a previous session key — cannot decrypt on this device]';
+const DECRYPTION_FAIL_MSG = '🔒 Message from a previous session';
 
 export default function Chat() {
   const { user } = useAuth();
@@ -198,6 +199,9 @@ export default function Chat() {
   // ── Cert review modal ─────────────────────────────────────────────────────
   const [reviewCert, setReviewCert] = useState(null);
 
+  // ── Message Actions State ──────────────────────────────────────────────────
+  const [activeMessageMenu, setActiveMessageMenu] = useState(null);
+
   const messagesEndRef = useRef(null);
 
   const emojiPickerRef = useRef(null);
@@ -216,11 +220,14 @@ export default function Chat() {
     return buildChatId(partner.uid, mentorUid);
   })();
 
-  // ── Close emoji picker on outside click ──────────────────────────────────
+  // ── Close emoji picker & message menu on outside click ────────────────────
   useEffect(() => {
     const handle = (e) => {
       if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target)) {
         setShowEmoji(false);
+      }
+      if (!e.target.closest('.message-action-menu')) {
+        setActiveMessageMenu(null);
       }
     };
     document.addEventListener('mousedown', handle);
@@ -248,39 +255,41 @@ export default function Chat() {
   }, [chatId, e2eeReady, myUid, partner?.uid]);
 
   // ── E2EE: Decrypt incoming encrypted messages ──────────────────────────────
-  // Messages from RTDB have flat fields: { encrypted: true, ciphertext, iv }.
-  // We decrypt each one asynchronously and cache the result in decryptedTexts.
   useEffect(() => {
     if (!e2eeReady || !chatId || !partner?.uid) return;
     const partnerUid = partner.uid;
 
-    // Filter messages that are flagged as encrypted in RTDB and not yet decrypted
     const encryptedMsgs = messages.filter(
       (m) => m.encrypted && m.ciphertext && m.iv && !decryptingIds.current.has(m.id)
     );
     if (encryptedMsgs.length === 0) return;
 
-    // Mark all as queued so this effect doesn't re-trigger them
     encryptedMsgs.forEach((m) => decryptingIds.current.add(m.id));
 
-    Promise.all(
-      encryptedMsgs.map(async (m) => {
-        // Decrypt using the flat RTDB ciphertext + iv fields
+    const MAX_RETRIES = 3;
+    const RETRY_DELAY_MS = 800;
+
+    const decryptWithRetry = async (m) => {
+      for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
         const plain = await decryptMessage(myUid, partnerUid, chatId, m.ciphertext, m.iv);
-        return { id: m.id, text: plain };
-      })
-    ).then((results) => {
+        if (plain !== null) return { id: m.id, text: plain };
+        if (attempt < MAX_RETRIES - 1) {
+          await new Promise((res) => setTimeout(res, RETRY_DELAY_MS));
+        }
+      }
+      return { id: m.id, text: DECRYPTION_FAIL_MSG };
+    };
+
+    Promise.all(encryptedMsgs.map(decryptWithRetry)).then((results) => {
       setDecryptedTexts((prev) => {
         const next = { ...prev };
-        results.forEach(({ id, text }) => {
-          // null = decryption failed (key from previous session / mismatch)
-          next[id] = text !== null ? text : DECRYPTION_FAIL_MSG;
-        });
+        results.forEach(({ id, text }) => { next[id] = text; });
         return next;
       });
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, e2eeReady, chatId]);
+
 
   // ── Scroll to bottom on new messages ─────────────────────────────────────
   useEffect(() => {
@@ -433,7 +442,17 @@ export default function Chat() {
     return () => unsub();
   }, [myUid]);
 
-  // -- 9. Reactive unread-badge self-corrector --------------------------------
+  // ── 9. Delete Message Handler ──────────────────────────────────────────────
+  const handleDeleteMessage = async (msgId, deleteMode) => {
+    setActiveMessageMenu(null);
+    try {
+      await deleteMessage(chatId, msgId, deleteMode, myUid);
+    } catch (err) {
+      console.error('Failed to delete message:', err);
+    }
+  };
+
+  // ── Reactive unread-badge self-corrector --------------------------------
   // When RTDB notifies us that the CURRENTLY OPEN chat has a non-zero unread
   // count (e.g. from a batch-update race or stale counter), immediately reset
   // it. This is a fail-safe on top of effects #5 and #5b so the badge never
@@ -772,20 +791,17 @@ export default function Chat() {
 
             {/* Message Window */}
             <div
-              className="flex-1 p-6 overflow-y-auto space-y-3 bg-[#0b141a]"
-              style={{
-                backgroundImage: `radial-gradient(#111b21 0.75px, #0b141a 0.75px)`,
-                backgroundSize: '15px 15px',
-              }}
+              className="flex-1 p-6 overflow-y-auto space-y-4 bg-brand-bg relative"
             >
-              {messages.length === 0 ? (
-                <div className="h-full flex items-center justify-center">
-                  <p className="text-xs text-brand-text-muted bg-[#182229] px-4 py-2 rounded-xl">
-                    Messages are end-to-end synced in real-time. Start the conversation.
+              {messages.filter(m => !m.deletedFor?.[myUid]).length === 0 ? (
+                <div className="h-full flex flex-col items-center justify-center opacity-70">
+                  <MessageSquare size={32} className="text-brand-text-muted mb-3" />
+                  <p className="text-xs text-brand-text-secondary bg-brand-bg-alt px-5 py-2.5 rounded-2xl shadow-sm border border-brand-border/30">
+                    This is the beginning of your conversation with {partner.name}.
                   </p>
                 </div>
               ) : (
-                messages.map((msg) => {
+                messages.filter(m => !m.deletedFor?.[myUid]).map((msg) => {
                   // ── System message (Skill Swap initiateChatMessage pattern) ──
                   if (msg.type === 'system') {
                     return (
@@ -804,94 +820,126 @@ export default function Chat() {
                       key={msg.id}
                       className={`flex w-full ${isMe ? 'justify-end' : 'justify-start'}`}
                     >
-                      <div
-                        className={`max-w-[72%] relative text-xs shadow-sm overflow-hidden ${
-                          isMe
-                            ? 'bg-[#005c4b] text-white rounded-2xl rounded-tr-none'
-                            : 'bg-[#202c33] text-white rounded-2xl rounded-tl-none'
-                        }`}
-                      >
-                        {/* Certificate message */}
-                        {msg.type === 'certificate' && (
-                          <CertMessageCard
-                            msg={msg}
-                            isMe={isMe}
-                            userRole={user?.role}
-                            onApprove={handleCertApprove}
-                            onReject={handleCertReject}
-                            onViewCert={handleViewCert}
-                          />
-                        )}
-
-                        {/* Image message */}
-                        {msg.type === 'image' && (
-                          <img
-                            src={msg.attachmentUrl}
-                            alt={msg.fileName || 'Image'}
-                            className="max-w-xs max-h-56 object-contain block cursor-pointer hover:opacity-90 transition-opacity rounded-t-2xl"
-                            onClick={() => window.open(msg.attachmentUrl, '_blank')}
-                          />
-                        )}
-
-                        {/* File message */}
-                        {msg.type === 'file' && (
-                          <a
-                            href={msg.attachmentUrl}
-                            download={msg.fileName}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex items-center gap-3 p-3 hover:bg-white/5 transition-colors"
+                      {/* Inner wrapper for message bubble and action menu */}
+                      <div className="relative group flex items-start max-w-[75%]">
+                        {/* Delete Menu */}
+                        <div className={`absolute top-0 flex items-center ${isMe ? '-left-8' : '-right-8'} opacity-0 group-hover:opacity-100 transition-opacity message-action-menu`}>
+                          <button 
+                            onClick={() => setActiveMessageMenu(activeMessageMenu === msg.id ? null : msg.id)}
+                            className="p-1 rounded-full text-brand-text-secondary hover:text-brand-text-primary hover:bg-brand-border/40 transition-colors"
                           >
-                            <div className="w-9 h-9 rounded-lg bg-brand-accent/20 flex items-center justify-center text-brand-accent shrink-0">
-                              <File size={18} />
+                            <MoreVertical size={14} />
+                          </button>
+                          {activeMessageMenu === msg.id && (
+                            <div className={`absolute top-6 ${isMe ? 'right-0' : 'left-0'} z-50 w-40 bg-brand-bg border border-brand-border/60 rounded-xl shadow-xl overflow-hidden py-1`}>
+                              <button
+                                onClick={() => handleDeleteMessage(msg.id, 'me')}
+                                className="w-full text-left px-4 py-2 text-[11px] font-medium text-brand-text-primary hover:bg-brand-border/30 transition-colors cursor-pointer"
+                              >
+                                Delete for me
+                              </button>
+                              {isMe && (
+                                <button
+                                  onClick={() => handleDeleteMessage(msg.id, 'everyone')}
+                                  className="w-full text-left px-4 py-2 text-[11px] font-medium text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+                                >
+                                  Delete for everyone
+                                </button>
+                              )}
                             </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="font-semibold text-white truncate">{msg.fileName}</p>
-                              <p className="text-[10px] text-white/50">
-                                {msg.fileSize ? `${(msg.fileSize / 1024).toFixed(0)} KB` : 'File'}
-                              </p>
+                          )}
+                        </div>
+
+                        {/* Message Bubble */}
+                        <div
+                          className={`w-full relative text-sm shadow-md overflow-hidden transition-all ${
+                            msg.isDeletedForEveryone 
+                              ? 'bg-transparent border border-brand-border/40 text-brand-text-muted rounded-2xl px-4 py-2.5 italic shadow-none'
+                              : isMe
+                                ? 'bg-indigo-600 text-white rounded-2xl rounded-tr-[4px]'
+                                : 'bg-brand-bg-alt border border-brand-border/30 text-brand-text-primary rounded-2xl rounded-tl-[4px]'
+                          }`}
+                        >
+                          {msg.isDeletedForEveryone ? (
+                            <div className="flex items-center gap-2 text-xs">
+                              <span className="opacity-70">This message was deleted</span>
                             </div>
-                            <Download size={14} className="text-white/50" />
-                          </a>
-                        )}
+                          ) : (
+                            <>
+                              {/* Certificate message */}
+                              {msg.type === 'certificate' && (
+                                <CertMessageCard
+                                  msg={msg}
+                                  isMe={isMe}
+                                  userRole={user?.role}
+                                  onApprove={handleCertApprove}
+                                  onReject={handleCertReject}
+                                  onViewCert={handleViewCert}
+                                />
+                              )}
 
-                        {/* Text message */}
-                        {(!msg.type || msg.type === 'text') && (
-                          <p className="px-3 pt-2 pb-5 whitespace-pre-wrap break-words leading-relaxed text-[13px]">
-                            {(() => {
-                              // E2EE: encrypted message — show decrypted text from state map
-                              if (msg.encrypted) {
-                                const decrypted = decryptedTexts[msg.id];
-                                if (decrypted === undefined) {
-                                  // Still decrypting
-                                  return (
-                                    <span className="text-white/40 italic text-[11px]">
-                                      🔒 Decrypting…
-                                    </span>
-                                  );
-                                }
-                                if (decrypted === DECRYPTION_FAIL_MSG) {
-                                  return (
-                                    <span className="text-white/30 italic text-[11px]">
-                                      {DECRYPTION_FAIL_MSG}
-                                    </span>
-                                  );
-                                }
-                                return decrypted;
-                              }
-                              // Legacy plaintext message (no encryption flag)
-                              return msg.message || null;
-                            })()}
-                          </p>
-                        )}
+                              {/* Image message */}
+                              {msg.type === 'image' && (
+                                <img
+                                  src={msg.attachmentUrl}
+                                  alt={msg.fileName || 'Image'}
+                                  className={`max-w-xs max-h-56 object-contain block cursor-pointer hover:opacity-90 transition-opacity ${isMe ? 'rounded-tr-[4px]' : 'rounded-tl-[4px]'} rounded-t-2xl`}
+                                  onClick={() => window.open(msg.attachmentUrl, '_blank')}
+                                />
+                              )}
 
-                        {/* Timestamp + Read receipt */}
-                        {msg.type !== 'certificate' && (
-                          <div className="flex items-center gap-1 select-none absolute right-2 bottom-1">
-                            <span className="text-[10px] text-white/50">{formatTimestamp(msg.timestamp)}</span>
-                            {isMe && <ReadTick isRead={msg.isRead} />}
-                          </div>
-                        )}
+                              {/* File message */}
+                              {msg.type === 'file' && (
+                                <a
+                                  href={msg.attachmentUrl}
+                                  download={msg.fileName}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-3 p-3 hover:bg-white/5 transition-colors cursor-pointer"
+                                >
+                                  <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center text-blue-400 shrink-0">
+                                    <File size={18} />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-semibold text-[13px] truncate">{msg.fileName}</p>
+                                    <p className="text-[11px] opacity-70">
+                                      {msg.fileSize ? `${(msg.fileSize / 1024).toFixed(0)} KB` : 'File'}
+                                    </p>
+                                  </div>
+                                  <Download size={16} className="opacity-70 ml-2" />
+                                </a>
+                              )}
+
+                              {/* Text message */}
+                              {(!msg.type || msg.type === 'text') && (
+                                <div className="px-4 pt-2.5 pb-6 whitespace-pre-wrap break-words leading-relaxed text-[13.5px]">
+                                  {msg.encrypted ? (
+                                    (() => {
+                                      const decrypted = decryptedTexts[msg.id];
+                                      if (decrypted === undefined) {
+                                        return <span className="opacity-60 italic text-xs">🔒 Decrypting…</span>;
+                                      }
+                                      if (decrypted === DECRYPTION_FAIL_MSG) {
+                                        return <span className="opacity-60 italic text-xs">{DECRYPTION_FAIL_MSG}</span>;
+                                      }
+                                      return decrypted;
+                                    })()
+                                  ) : (
+                                    msg.message || null
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Timestamp + Read receipt */}
+                              {msg.type !== 'certificate' && (
+                                <div className="flex items-center gap-1 select-none absolute right-3 bottom-1.5 opacity-70">
+                                  <span className="text-[10px]">{formatTimestamp(msg.timestamp)}</span>
+                                  {isMe && <ReadTick isRead={msg.isRead} />}
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
@@ -947,16 +995,16 @@ export default function Chat() {
                   type="text"
                   value={inputText}
                   onChange={handleInputChange}
-                  placeholder="Type a message"
-                  className="flex-1 px-4 py-2.5 bg-[#2a3942] border-none rounded-xl text-xs focus:outline-none text-brand-text-primary placeholder:text-brand-text-muted"
+                  placeholder="Message..."
+                  className="flex-1 px-4 py-3 bg-brand-bg border border-brand-border/60 rounded-xl text-[13.5px] focus:outline-none focus:border-brand-accent focus:ring-1 focus:ring-brand-accent transition-all text-brand-text-primary placeholder:text-brand-text-muted"
                 />
 
                 <button
                   type="submit"
                   disabled={!inputText.trim()}
-                  className="p-2.5 rounded-full bg-brand-accent hover:bg-brand-accent-hover text-brand-bg font-bold transition-all flex items-center justify-center cursor-pointer shrink-0 disabled:opacity-50"
+                  className="p-3 rounded-xl bg-brand-accent hover:bg-brand-accent-hover text-brand-bg font-bold shadow-md transition-all flex items-center justify-center cursor-pointer shrink-0 disabled:opacity-50 disabled:shadow-none"
                 >
-                  <Send size={15} />
+                  <Send size={16} />
                 </button>
               </form>
             </div>

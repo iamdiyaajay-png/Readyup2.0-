@@ -182,6 +182,83 @@ Return ONLY a valid JSON object (no markdown fences):
 }
 
 /**
+ * Review a resume text with a specific job target using Gemini.
+ * Returns ATS score, feedback, missing keywords, AND skills needed for the job.
+ *
+ * @param {string} resumeText - Plain text of the resume
+ * @param {string} jobTitle   - The job the student is applying for
+ */
+export async function reviewResumeForJobWithGemini(resumeText, jobTitle) {
+  const client = getClient();
+  if (!client) {
+    const base = generateFallbackResumeReview(resumeText);
+    return { ...base, jobSkillsNeeded: ['Communication', 'Problem Solving', 'Git', 'Agile/Scrum'] };
+  }
+
+  const prompt = `You are an expert HR Manager, ATS Optimizer, and career coach. A student is targeting the role of "${jobTitle}".
+
+Analyze this resume text for that specific role:
+"""
+${resumeText}
+"""
+
+1. Calculate an ATS optimization score (0-100) for the role "${jobTitle}".
+2. Provide a level: 'Low Match', 'Medium Match', or 'High Match'.
+3. Give exactly 4 action-item feedback points (id 1-4, type 'success' or 'warning').
+4. List 5 technical/soft keywords missing from the resume.
+5. List the top 8 skills/technologies that are ESSENTIAL for a "${jobTitle}" role that the candidate should learn or highlight.
+
+Return ONLY a valid JSON object (no markdown fences):
+{
+  "score": 72,
+  "level": "Medium Match",
+  "keyFeedback": [
+    { "id": 1, "type": "warning", "text": "Feedback specific to ${jobTitle}..." }
+  ],
+  "missingKeywords": ["keyword1", "keyword2"],
+  "jobSkillsNeeded": ["Skill1", "Skill2", "Skill3", "Skill4", "Skill5", "Skill6", "Skill7", "Skill8"]
+}`;
+
+  try {
+    const response = await client.models.generateContent({ model: MODEL, contents: prompt });
+    const resultText = response.text;
+    if (!resultText) throw new Error('Empty response from Gemini');
+    return cleanJSONResponse(resultText);
+  } catch (err) {
+    console.error('Gemini Job Resume Review failed, using fallback:', err.message);
+    const base = generateFallbackResumeReview(resumeText);
+    return { ...base, jobSkillsNeeded: ['Communication', 'Problem Solving', 'Git', 'Agile/Scrum'] };
+  }
+}
+
+/**
+ * Quick check whether the configured Gemini API key is valid.
+ * Returns { ok: boolean, message: string }.
+ */
+export async function checkGeminiApiKey() {
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  if (!apiKey) return { ok: false, message: 'No API key configured in .env' };
+  try {
+    const client = new (await import('@google/genai')).GoogleGenAI({ apiKey });
+    const res = await client.models.generateContent({
+      model: MODEL,
+      contents: 'Reply with the single word: OK',
+    });
+    const text = (res.text || '').trim();
+    if (text) return { ok: true, message: `API key is valid. Model replied: "${text}"` };
+    return { ok: false, message: 'API key accepted but got empty response.' };
+  } catch (err) {
+    const msg = err?.message || 'Unknown error';
+    if (msg.includes('400') || msg.includes('401') || msg.includes('403') || msg.includes('API_KEY')) {
+      return { ok: false, message: `Invalid API key (${msg.match(/\d{3}/)?.[0] || 'auth error'}). Get a new key at aistudio.google.com.` };
+    }
+    if (msg.includes('429')) return { ok: false, message: 'API key is valid but quota exceeded. Wait and retry.' };
+    return { ok: false, message: `Key check failed: ${msg}` };
+  }
+}
+
+
+/**
  * Validate a certificate using OCR-extracted text via Gemini text API.
  * Extracts 9 structured fields including CertID, Duration, Skills, Category.
  * @param {string} ocrText      Raw text extracted from the certificate image

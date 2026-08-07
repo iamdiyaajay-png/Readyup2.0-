@@ -28,6 +28,7 @@ export default function Scheduler() {
   const [date, setDate] = useState('2026-06-25');
   const [timeSlot, setTimeSlot] = useState('10:00 - 11:00');
   const [type, setType] = useState('Frontend Architecture Mock');
+  const [customType, setCustomType] = useState('');
   const [success, setSuccess] = useState(false);
 
   // 1. Fetch Student's mentor name dynamically
@@ -94,12 +95,14 @@ export default function Scheduler() {
       return;
     }
 
+    const resolvedType = type === 'Other' ? (customType.trim() || 'Other') : type;
+
     const newInt = {
       studentId: user.uid,
       studentName: user.name || user.displayName || 'Student Candidate',
       mentorId: user.mentorId,
       mentorName: mentorName,
-      type,
+      type: resolvedType,
       date,
       timeSlot,
       status: 'requested',
@@ -177,14 +180,32 @@ export default function Scheduler() {
                   <label className="text-[10px] font-semibold text-brand-text-secondary uppercase">Interview Type</label>
                   <select
                     value={type}
-                    onChange={(e) => setType(e.target.value)}
+                    onChange={(e) => { setType(e.target.value); setCustomType(''); }}
                     className="w-full px-3 py-2.5 bg-brand-bg/50 border border-brand-border rounded-xl text-xs text-brand-text-primary focus:outline-none"
                   >
                     <option value="Frontend Architecture Mock">Frontend Architecture Mock</option>
                     <option value="System Design Mock">System Design Mock</option>
                     <option value="Behavioral & HR Mock">Behavioral & HR Mock</option>
                     <option value="DSA & Algorithms Mock">DSA & Algorithms Mock</option>
+                    <option value="Other">Other (Specify Below)</option>
                   </select>
+
+                  {/* Custom type input shown only when 'Other' is selected */}
+                  {type === 'Other' && (
+                    <div className="mt-3">
+                      <label className="text-[10px] font-semibold text-brand-text-secondary uppercase block mb-1">
+                        Describe your interview type
+                      </label>
+                      <textarea
+                        value={customType}
+                        onChange={(e) => setCustomType(e.target.value)}
+                        placeholder="e.g. Full-Stack Project Review, ML System Design, Portfolio Walkthrough…"
+                        rows={3}
+                        className="w-full px-3 py-2 bg-brand-bg/50 border border-brand-accent/40 rounded-xl text-xs text-brand-text-primary focus:outline-none focus:border-brand-accent transition-colors resize-none"
+                        required
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-1">

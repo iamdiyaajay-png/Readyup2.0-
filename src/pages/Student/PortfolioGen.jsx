@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { db } from '../../firebase';
-import { doc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, updateDoc, collection, query, where, onSnapshot } from 'firebase/firestore';
 import { ArrowRight, ArrowLeft, FileDown, Sparkles, Save, ExternalLink } from 'lucide-react';
 
 export default function PortfolioGen() {
@@ -31,22 +31,20 @@ export default function PortfolioGen() {
     }
   }, [user]);
 
-  // Fetch submitted projects
+  // Fetch submitted projects — real-time so new projects appear immediately
   useEffect(() => {
     if (!user?.uid) return;
-    const fetchProjects = async () => {
-      try {
-        const q = query(collection(db, 'projects'), where('studentId', '==', user.uid));
-        const snap = await getDocs(q);
-        const list = [];
-        snap.forEach((d) => list.push({ id: d.id, ...d.data() }));
-        setProjects(list);
-      } catch (err) {
-        console.error('Error fetching projects:', err);
-      }
-    };
-    fetchProjects();
+    const q = query(collection(db, 'projects'), where('studentId', '==', user.uid));
+    const unsub = onSnapshot(q, (snap) => {
+      const list = [];
+      snap.forEach((d) => list.push({ id: d.id, ...d.data() }));
+      setProjects(list);
+    }, (err) => {
+      console.error('Error syncing projects in PortfolioGen:', err);
+    });
+    return () => unsub();
   }, [user?.uid]);
+
 
   // Fetch ONLY mentor-approved certificates
   useEffect(() => {

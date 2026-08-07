@@ -1,9 +1,9 @@
 import { useState, useRef } from 'react';
-import { FileText, Sparkles, CheckCircle, AlertTriangle, ListChecks, Upload, X } from 'lucide-react';
+import { FileText, Sparkles, CheckCircle, AlertTriangle, ListChecks, Upload, X, Briefcase, Target, ChevronRight } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { db } from '../../firebase';
 import { collection, addDoc } from 'firebase/firestore';
-import { reviewResumeWithGemini } from '../../services/gemini';
+import { reviewResumeWithGemini, reviewResumeForJobWithGemini } from '../../services/gemini';
 import { logResumeReviewed } from '../../services/activityLog';
 
 // Extract text from PDF using pdfjs-dist (loaded dynamically to avoid build bloat)
@@ -50,6 +50,10 @@ export default function ResumeReviewer() {
   const [result, setResult] = useState(null);
   const [pdfError, setPdfError] = useState('');
   const [inputMode, setInputMode] = useState('text'); // 'text' | 'pdf'
+
+  // Job targeting
+  const [jobTitle, setJobTitle] = useState('');
+  const [jobMode, setJobMode] = useState(false); // toggles job-targeted analysis
 
   const handleFileChange = async (e) => {
     const file = e.target.files?.[0];
@@ -100,7 +104,12 @@ export default function ResumeReviewer() {
     setResult(null);
 
     try {
-      const data = await reviewResumeWithGemini(resumeText.trim());
+      let data;
+      if (jobMode && jobTitle.trim()) {
+        data = await reviewResumeForJobWithGemini(resumeText.trim(), jobTitle.trim());
+      } else {
+        data = await reviewResumeWithGemini(resumeText.trim());
+      }
       setResult(data);
 
       if (user?.uid) {
@@ -109,6 +118,7 @@ export default function ResumeReviewer() {
           atsScore: data.score,
           feedback: data.keyFeedback,
           sourceType: uploadedFile ? 'pdf' : 'text',
+          jobTarget: jobMode && jobTitle.trim() ? jobTitle.trim() : null,
           createdAt: new Date().toISOString()
         });
         await logResumeReviewed(user.uid, data.score);
@@ -133,6 +143,7 @@ export default function ResumeReviewer() {
           <h1 className="text-3xl font-bold tracking-tight">AI Resume Reviewer</h1>
           <p className="text-sm text-brand-text-secondary max-w-xl">
             Upload your PDF resume or paste text. Gemini calculates your ATS score, identifies missing keywords, and suggests improvements.
+            Optionally target a specific job role for tailored feedback.
           </p>
         </div>
       </div>
@@ -160,6 +171,47 @@ export default function ResumeReviewer() {
             >
               <FileText size={13} /> Paste Text
             </button>
+          </div>
+
+          {/* ── Job Targeting Toggle ── */}
+          <div className="rounded-2xl border border-brand-border bg-brand-bg/30 overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setJobMode((v) => !v)}
+              className="w-full flex items-center justify-between px-4 py-3 text-xs font-bold text-brand-text-secondary hover:text-brand-text-primary transition-colors cursor-pointer"
+            >
+              <span className="flex items-center gap-2">
+                <Briefcase size={14} className="text-brand-accent" />
+                Target a Specific Job Role
+                {jobMode && jobTitle && (
+                  <span className="ml-1 px-2 py-0.5 rounded-full bg-brand-accent-light text-brand-accent text-[10px] border border-brand-accent/20">
+                    {jobTitle}
+                  </span>
+                )}
+              </span>
+              <ChevronRight
+                size={14}
+                className={`transition-transform duration-200 ${jobMode ? 'rotate-90' : ''}`}
+              />
+            </button>
+
+            {jobMode && (
+              <div className="px-4 pb-4 space-y-2 border-t border-brand-border/60 pt-3">
+                <label className="text-[10px] font-semibold text-brand-text-muted uppercase tracking-wider block">
+                  What job are you applying for?
+                </label>
+                <input
+                  type="text"
+                  value={jobTitle}
+                  onChange={(e) => setJobTitle(e.target.value)}
+                  placeholder="e.g. Frontend Developer, Data Analyst, DevOps Engineer…"
+                  className="w-full px-4 py-2.5 bg-brand-bg/60 border border-brand-border rounded-xl text-sm focus:outline-none focus:border-brand-accent transition-colors text-brand-text-primary"
+                />
+                <p className="text-[10px] text-brand-text-muted">
+                  Gemini will tailor the ATS score, feedback, and list skills needed for this specific role.
+                </p>
+              </div>
+            )}
           </div>
 
           <form onSubmit={handleReview} className="space-y-4">
@@ -245,7 +297,11 @@ export default function ResumeReviewer() {
               ) : (
                 <>
                   <Sparkles size={16} />
-                  <span>Scan Resume with Gemini</span>
+                  <span>
+                    {jobMode && jobTitle.trim()
+                      ? `Scan for "${jobTitle}" role`
+                      : 'Scan Resume with Gemini'}
+                  </span>
                 </>
               )}
             </button>
@@ -253,8 +309,8 @@ export default function ResumeReviewer() {
         </div>
 
         {/* Report (1 Col) */}
-        <div className="glass-card p-6 rounded-3xl border border-brand-border">
-          <h3 className="text-sm font-bold text-brand-text-primary mb-4 flex items-center gap-2">
+        <div className="glass-card p-6 rounded-3xl border border-brand-border space-y-4">
+          <h3 className="text-sm font-bold text-brand-text-primary flex items-center gap-2">
             <FileText size={16} className="text-brand-accent" />
             <span>ATS Scan Report</span>
           </h3>
@@ -264,7 +320,11 @@ export default function ResumeReviewer() {
               <div className="w-12 h-12 rounded-full border-4 border-brand-accent/20 border-t-brand-accent animate-spin mb-4" />
               <div className="space-y-2">
                 <p className="text-sm font-semibold text-brand-text-primary">Scanning resume sections...</p>
-                <p className="text-xs text-brand-text-muted">Gemini is checking placement requirements</p>
+                <p className="text-xs text-brand-text-muted">
+                  {jobMode && jobTitle.trim()
+                    ? `Gemini is analysing fit for "${jobTitle}"`
+                    : 'Gemini is checking placement requirements'}
+                </p>
               </div>
             </div>
           )}
@@ -276,7 +336,15 @@ export default function ResumeReviewer() {
           )}
 
           {!loading && result && (
-            <div className="space-y-6 animate-fade-in">
+            <div className="space-y-5 animate-fade-in">
+              {/* Job target pill */}
+              {result.jobSkillsNeeded && jobTitle && (
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-indigo-950/30 border border-indigo-500/20 w-fit">
+                  <Target size={12} className="text-indigo-400" />
+                  <span className="text-[10px] font-bold text-indigo-400">Targeted: {jobTitle}</span>
+                </div>
+              )}
+
               {/* Score ring */}
               <div className="flex items-center gap-4 bg-brand-bg/40 p-4 rounded-2xl border border-brand-border/60">
                 <div className="w-16 h-16 rounded-full border-4 border-brand-accent flex items-center justify-center font-extrabold text-lg text-brand-accent bg-brand-accent-light">
@@ -319,6 +387,26 @@ export default function ResumeReviewer() {
                   ))}
                 </div>
               </div>
+
+              {/* Job Skills Needed */}
+              {result.jobSkillsNeeded?.length > 0 && (
+                <div className="space-y-3 border-t border-brand-border/40 pt-4">
+                  <span className="text-[10px] uppercase font-bold text-indigo-400 tracking-wider flex items-center gap-1">
+                    <Briefcase size={12} />
+                    <span>Skills Needed for This Role</span>
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {result.jobSkillsNeeded.map((sk) => (
+                      <span
+                        key={sk}
+                        className="px-2.5 py-1 rounded-lg bg-indigo-950/30 border border-indigo-500/20 text-[10px] font-semibold text-indigo-300"
+                      >
+                        {sk}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

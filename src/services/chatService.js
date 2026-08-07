@@ -224,6 +224,40 @@ export async function markMessagesRead(chatId, userId) {
   }
 }
 
+// ─── Delete Message ───────────────────────────────────────────────────────────
+/**
+ * Soft delete a message.
+ * @param {string} chatId
+ * @param {string} msgId
+ * @param {string} deleteMode 'me' | 'everyone'
+ * @param {string} userId
+ */
+export async function deleteMessage(chatId, msgId, deleteMode, userId) {
+  if (!chatId || !msgId || !userId) return;
+
+  const msgRef = ref(rtdb, `messages/${chatId}/${msgId}`);
+
+  if (deleteMode === 'everyone') {
+    // For everyone: remove the sensitive contents and flag as deleted for everyone
+    await update(msgRef, {
+      isDeletedForEveryone: true,
+      message: null,
+      ciphertext: null,
+      iv: null,
+      attachmentUrl: null,
+      fileName: null,
+      fileSize: null,
+      certMeta: null
+    });
+  } else if (deleteMode === 'me') {
+    // For me: just add to deletedFor map
+    await update(msgRef, {
+      [`deletedFor/${userId}`]: true
+    });
+  }
+}
+
+
 // ─── Typing Indicator ─────────────────────────────────────────────────────────
 /**
  * Set typing state for a user in a chat.

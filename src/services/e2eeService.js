@@ -212,6 +212,55 @@ function base64ToBuffer(base64) {
   return bytes.buffer;
 }
 
+// ─── Key Backup Helpers ───────────────────────────────────────────────────────
+
+async function getMasterKey() {
+  const secret = import.meta.env.VITE_ENCRYPT_KEY || 'default_secret_key_123';
+  const encoder = new TextEncoder();
+  const hash = await crypto.subtle.digest('SHA-256', encoder.encode(secret));
+  return crypto.subtle.importKey(
+    'raw',
+    hash,
+    { name: 'AES-GCM' },
+    false,
+    ['encrypt', 'decrypt']
+  );
+}
+
+async function encryptPrivateKey(jwk) {
+  const masterKey = await getMasterKey();
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const encoded = new TextEncoder().encode(JSON.stringify(jwk));
+  const ciphertextBuffer = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv },
+    masterKey,
+    encoded
+  );
+  return {
+    ciphertext: bufferToBase64(ciphertextBuffer),
+    iv: bufferToBase64(iv.buffer)
+  };
+}
+
+async function decryptPrivateKey(encryptedObj) {
+  if (!encryptedObj || !encryptedObj.ciphertext || !encryptedObj.iv) return null;
+  try {
+    const masterKey = await getMasterKey();
+    const ciphertextBuffer = base64ToBuffer(encryptedObj.ciphertext);
+    const ivBuffer = base64ToBuffer(encryptedObj.iv);
+    const plaintextBuffer = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: new Uint8Array(ivBuffer) },
+      masterKey,
+      ciphertextBuffer
+    );
+    return JSON.parse(new TextDecoder().decode(plaintextBuffer));
+  } catch (err) {
+    console.warn("[E2EE] Failed to decrypt master private key backup", err);
+    return null;
+  }
+}
+
+
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 /**
@@ -262,12 +311,37 @@ export async function initE2EE(uid) {
 
       _keyCache[uid] = { privateKey, publicKey };
 
-      // Ensure our public key is in Firestore (may have been lost if user cleared Firestore)
-      await _ensurePublicKeyInFirestore(uid, pubJwk);
+      // Ensure our public key and encrypted private key are in Firestore (in case they got cleared)
+      const encryptedPriv = await encryptPrivateKey(privJwk);
+      await _ensurePublicKeyInFirestore(uid, pubJwk, encryptedPriv);
       return;
     } catch {
-      // Corrupt stored keys — fall through to regenerate
+      // Corrupt stored keys — fall through to check Firestore or regenerate
     }
+  }
+
+  // ── Fallback: Check Firestore for backed up private key ──
+  try {
+    const userSnap = await getDoc(doc(db, 'users', uid));
+    if (userSnap.exists()) {
+      const data = userSnap.data();
+      if (data.e2eePrivateKeyEncrypted && data.e2eePublicKey) {
+        const privJwk = await decryptPrivateKey(data.e2eePrivateKeyEncrypted);
+        const pubJwk = JSON.parse(data.e2eePublicKey);
+        if (privJwk && pubJwk) {
+          const privateKey = await importPrivateKeyFromJwk(privJwk);
+          const publicKey  = await importPublicKeyFromJwk(pubJwk);
+          _keyCache[uid] = { privateKey, publicKey };
+          
+          // Restore to local storage
+          localStorage.setItem(privateKeyStorageKey(uid), JSON.stringify(privJwk));
+          localStorage.setItem(publicKeyStorageKey(uid), JSON.stringify(pubJwk));
+          return;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[E2EE] Failed to check Firestore for key backup:', err.message);
   }
 
   // ── Generate new key pair ──
@@ -275,35 +349,37 @@ export async function initE2EE(uid) {
   const privJwk   = await exportKeyAsJwk(keyPair.privateKey);
   const pubJwk    = await exportKeyAsJwk(keyPair.publicKey);
 
-  // Store private key locally (NEVER sent to server)
+  // Store private key locally (NEVER sent to server in plaintext)
   localStorage.setItem(privateKeyStorageKey(uid), JSON.stringify(privJwk));
   // Cache public key locally for quick re-import
   localStorage.setItem(publicKeyStorageKey(uid), JSON.stringify(pubJwk));
 
   _keyCache[uid] = { privateKey: keyPair.privateKey, publicKey: keyPair.publicKey };
 
-  // Upload public key to Firestore (public keys are not secret)
-  await _ensurePublicKeyInFirestore(uid, pubJwk);
+  // Upload public key and ENCRYPTED private key to Firestore
+  const encryptedPriv = await encryptPrivateKey(privJwk);
+  await _ensurePublicKeyInFirestore(uid, pubJwk, encryptedPriv);
 }
 
 /**
- * Upload the user's public key JWK to their Firestore document.
+ * Upload the user's public key JWK and encrypted private key to their Firestore document.
  * Safe to call multiple times — uses updateDoc (not setDoc) to avoid overwriting
  * other user fields. The public key field is merged in.
  *
  * @param {string} uid
  * @param {JsonWebKey} pubJwk
+ * @param {object} encryptedPriv
  */
-async function _ensurePublicKeyInFirestore(uid, pubJwk) {
+async function _ensurePublicKeyInFirestore(uid, pubJwk, encryptedPriv) {
   try {
     const userRef = doc(db, 'users', uid);
     await updateDoc(userRef, {
       e2eePublicKey: JSON.stringify(pubJwk),
+      e2eePrivateKeyEncrypted: encryptedPriv,
     });
   } catch (err) {
     // Non-fatal: the user doc may not exist yet during first-login race conditions.
-    // The next initE2EE call (after the user doc is created) will retry.
-    console.warn('[E2EE] Could not upload public key to Firestore:', err.message);
+    console.warn('[E2EE] Could not upload keys to Firestore:', err.message);
   }
 }
 

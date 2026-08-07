@@ -136,11 +136,11 @@ export default function CertificateValidator() {
       extracted = await runOCR(file, setOcrProgress);
       setOcrText(extracted);
     } catch (err) {
-      setError('OCR failed. Please use a clear, high-resolution image of your certificate.');
+      setError('Tesseract OCR failed. Please use a clear, high-resolution image of your certificate.');
       setPhase('idle'); return;
     }
     if (!extracted?.trim() || extracted.trim().length < 20) {
-      setError('Could not read text from this image. Please use a sharper scan.');
+      setError('OCR could not read text from this image. Please use a sharper scan or higher resolution.');
       setPhase('idle'); return;
     }
 
@@ -151,9 +151,17 @@ export default function CertificateValidator() {
       validated = await validateCertificateFromText(extracted, user.name || '');
       setResult(validated);
     } catch (err) {
-      setError(err.message || 'Gemini failed to parse the certificate. Try again.');
+      const msg = err.message || '';
+      if (msg.includes('API Key') || msg.includes('401') || msg.includes('403') || msg.includes('400')) {
+        setError(`Gemini API error: Invalid or unauthorized API key. Please update VITE_GEMINI_API_KEY in your .env file and restart the dev server.`);
+      } else if (msg.includes('429')) {
+        setError('Gemini quota exceeded — please wait a minute and try again.');
+      } else {
+        setError(`Gemini failed to parse the certificate: ${msg}. Try again with a clearer image.`);
+      }
       setPhase('idle'); return;
     }
+
 
     // ── Step 3: Gemini Full Evaluation (score, fraud, category) ───
     setPhase('evaluate');

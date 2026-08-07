@@ -13,7 +13,6 @@ export const ROUTES = {
   SKILLS_ASSISTANT: '/student/skills-assistant',
   RESUME_REVIEWER: '/student/resume-reviewer',
   CERTIFICATE_VALIDATOR: '/student/certificate-validator',
-  DEBATE_TRAINER: '/student/debate-trainer',
 
   // Mentor specific routes
   MENTOR_DASHBOARD: '/mentor',

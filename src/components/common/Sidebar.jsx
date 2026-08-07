@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import { ROUTES } from '../../router/routes';
 import { listenToUnreadCounts, getTotalUnread } from '../../services/chatService';
 import {
@@ -16,11 +17,13 @@ import {
   UserCircle,
   Home,
   Award,
-  Swords,
+  Sun,
+  Moon,
 } from 'lucide-react';
 
 export default function Sidebar() {
   const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const location = useLocation();
   const navigate = useNavigate();
   const [totalUnread, setTotalUnread] = useState(0);
@@ -41,8 +44,7 @@ export default function Sidebar() {
     { name: 'Portfolio Gen', path: ROUTES.PORTFOLIO_GEN, icon: UserCheck },
     { name: 'Gemini Assistant', path: ROUTES.SKILLS_ASSISTANT, icon: SearchCode },
     { name: 'Resume Reviewer', path: ROUTES.RESUME_REVIEWER, icon: FileText },
-    { name: 'Certificates',     path: ROUTES.CERTIFICATE_VALIDATOR, icon: Award },
-    { name: 'Debate Trainer',   path: ROUTES.DEBATE_TRAINER,        icon: Swords },
+    { name: 'Certificates', path: ROUTES.CERTIFICATE_VALIDATOR, icon: Award },
   ];
 
   const mentorLinks = [
@@ -73,6 +75,8 @@ export default function Sidebar() {
     await logout();
     navigate(ROUTES.LANDING);
   };
+
+  const isLight = theme === 'light';
 
   return (
     <aside className="w-64 bg-brand-card border-r border-brand-border/60 flex flex-col h-screen sticky top-0">
@@ -134,6 +138,25 @@ export default function Sidebar() {
             <span className="text-xs text-brand-accent font-medium capitalize">{user?.role}</span>
           </div>
         </div>
+
+        {/* Theme Toggle */}
+        <button
+          onClick={toggleTheme}
+          title={isLight ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
+          className="w-full flex items-center gap-2 px-3 py-2 rounded-xl border border-brand-border/60 text-xs font-medium text-brand-text-secondary hover:text-brand-text-primary hover:bg-brand-card-hover transition-all cursor-pointer"
+        >
+          {isLight ? (
+            <>
+              <Moon size={14} className="text-indigo-400" />
+              <span>Switch to Dark Mode</span>
+            </>
+          ) : (
+            <>
+              <Sun size={14} className="text-yellow-400" />
+              <span>Switch to Light Mode</span>
+            </>
+          )}
+        </button>
 
         {/* Home + Sign Out */}
         <div className="flex gap-2">
