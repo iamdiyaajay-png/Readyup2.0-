@@ -1,0 +1,99 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-bg: #090d16;
+  --color-brand-card: #111827;
+  --color-brand-card-hover: #1f2937;
+  --color-brand-border: #1f2937;
+  --color-brand-accent: #10b981; /* Emerald accent */
+  --color-brand-accent-hover: #059669;
+  --color-brand-accent-light: rgba(16, 185, 129, 0.15);
+  --color-brand-text-primary: #f9fafb;
+  --color-brand-text-secondary: #9ca3af;
+  --color-brand-text-muted: #6b7280;
+
+  --animate-shimmer: shimmer 2s infinite linear;
+  --animate-fade-in: fadeIn 0.25s ease-out both;
+
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+}
+
+/* ── Light-mode overrides ─────────────────────────────────────
+   Applied when <html data-theme="light"> is set by ThemeContext.
+   We override CSS custom properties so every Tailwind class that
+   references them automatically picks up the light palette.
+   ──────────────────────────────────────────────────────────── */
+:root[data-theme="light"] {
+  --color-brand-bg:           #f0fdf4;
+  --color-brand-card:         #ffffff;
+  --color-brand-card-hover:   #f9fafb;
+  --color-brand-border:       #d1fae5;
+  --color-brand-accent:       #059669;
+  --color-brand-accent-hover: #047857;
+  --color-brand-accent-light: rgba(5, 150, 105, 0.12);
+  --color-brand-text-primary:   #111827;
+  --color-brand-text-secondary: #374151;
+  --color-brand-text-muted:     #6b7280;
+}
+
+/* Custom resets and styling */
+@layer base {
+  body {
+    @apply bg-brand-bg text-brand-text-primary antialiased;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+
+  /* Custom Scrollbars */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-brand-bg;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-brand-border rounded-full hover:bg-brand-text-muted;
+  }
+}
+
+/* Custom Skeleton Class */
+.skeleton {
+  background: linear-gradient(90deg, #1f2937 25%, #374151 50%, #1f2937 75%);
+  background-size: 200% 100%;
+  animation: var(--animate-shimmer);
+}
+:root[data-theme="light"] .skeleton {
+  background: linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%);
+  background-size: 200% 100%;
+}
+
+/* Glassmorphism card utility */
+.glass-card {
+  @apply bg-brand-card/85 backdrop-blur-md border border-brand-border/60 shadow-2xl;
+}
+
+/* Light-mode: remove translucency so cards are solid white */
+:root[data-theme="light"] .glass-card {
+  @apply bg-brand-card shadow-sm;
+}
+
+/* Animate fade-in utility */
+.animate-fade-in {
+  animation: var(--animate-fade-in);
+}
+
+/* Light-mode: chat panes */
+:root[data-theme="light"] [style*="0b141a"],
+:root[data-theme="light"] [style*="111b21"],
+:root[data-theme="light"] [style*="202c33"] {
+  background-color: #f9fafb !important;
+}
+
