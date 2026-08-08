@@ -1,0 +1,78 @@
+[debug] [2026-08-07T18:20:24.377Z] ----------------------------------------------------------------------
+[debug] [2026-08-07T18:20:24.379Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\Diya\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js login --reauth
+[debug] [2026-08-07T18:20:24.379Z] CLI Version:   15.22.1
+[debug] [2026-08-07T18:20:24.379Z] Platform:      win32
+[debug] [2026-08-07T18:20:24.379Z] Node Version:  v26.3.1
+[debug] [2026-08-07T18:20:24.379Z] Detected Agent: unknown
+[debug] [2026-08-07T18:20:24.379Z] Time:          Fri Aug 07 2026 23:50:24 GMT+0530 (India Standard Time)
+[debug] [2026-08-07T18:20:24.379Z] ----------------------------------------------------------------------
+[debug] 
+[info] 
+[info] Visit this URL on this device to log in:
+[info] https://accounts.google.com/o/oauth2/auth?client_id=563584335869-fgrhgmd47bqnekij5i8b5pr03ho849e6.apps.googleusercontent.com&scope=email%20openid%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcloudplatformprojects.readonly%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Ffirebase%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcloud-platform&response_type=code&state=107014466&redirect_uri=http%3A%2F%2Flocalhost%3A9005&login_hint=iamdiyaajay%40gmail.com
+[info] 
+[info] Waiting for authentication...
+[debug] [2026-08-07T18:20:32.600Z] >>> [apiv2][query] POST https://accounts.google.com/o/oauth2/token [none]
+[debug] [2026-08-07T18:20:32.601Z] >>> [apiv2][body] POST https://accounts.google.com/o/oauth2/token [omitted]
+[debug] [2026-08-07T18:20:32.876Z] Token Fetch Error: FirebaseError: FetchError: Invalid response body while trying to fetch https://accounts.google.com/o/oauth2/token: Premature close
+    at RetryOperation._fn (C:\Users\Diya\AppData\Roaming\npm\node_modules\firebase-tools\lib\apiv2.js:317:88)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+[error] Authentication Error: Your credentials are no longer valid. Please run firebase login --reauth
+
+For CI servers and headless environments, generate a new token with firebase login:ci
+[debug] [2026-08-07T18:20:32.887Z] >>> [apiv2][query] POST https://auth.firebase.tools/attest [none]
+[debug] [2026-08-07T18:20:32.888Z] >>> [apiv2][body] POST https://auth.firebase.tools/attest {"session_id":"9648954a-5719-458a-9ec2-96225736dfa6"}
+[debug] [2026-08-07T18:20:33.403Z] <<< [apiv2][status] POST https://auth.firebase.tools/attest 200
+[debug] [2026-08-07T18:20:33.403Z] <<< [apiv2][body] POST https://auth.firebase.tools/attest {"token":"5eMODqWBhx3p4umdjJJd0eqsMIYHuLOY8V_8bRFxfNs"}
+[info] 
+[info] To sign in to the Firebase CLI:
+[info] 
+[info] 1. Take note of your session ID:
+[info] 
+[info]    96489
+[info] 
+[info] 2. Visit the URL below on any device and follow the instructions to get your code:
+[info] 
+[info]    https://auth.firebase.tools/login?code_challenge=cof8QerN2X3bMCVeUrdGmfeF3Xvyw-pZGSHmJ0XDJF0&session=9648954a-5719-458a-9ec2-96225736dfa6&attest=5eMODqWBhx3p4umdjJJd0eqsMIYHuLOY8V_8bRFxfNs
+[info] 
+[info] 3. Paste or enter the authorization code below once you have it:
+[info] 
+[debug] [2026-08-07T18:22:24.266Z] ----------------------------------------------------------------------
+[debug] [2026-08-07T18:22:24.268Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\Diya\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js login --reauth
+[debug] [2026-08-07T18:22:24.268Z] CLI Version:   15.22.1
+[debug] [2026-08-07T18:22:24.268Z] Platform:      win32
+[debug] [2026-08-07T18:22:24.269Z] Node Version:  v26.3.1
+[debug] [2026-08-07T18:22:24.269Z] Detected Agent: unknown
+[debug] [2026-08-07T18:22:24.269Z] Time:          Fri Aug 07 2026 23:52:24 GMT+0530 (India Standard Time)
+[debug] [2026-08-07T18:22:24.269Z] ----------------------------------------------------------------------
+[debug] 
+[info] 
+[info] Visit this URL on this device to log in:
+[info] https://accounts.google.com/o/oauth2/auth?client_id=563584335869-fgrhgmd47bqnekij5i8b5pr03ho849e6.apps.googleusercontent.com&scope=email%20openid%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcloudplatformprojects.readonly%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Ffirebase%20https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcloud-platform&response_type=code&state=68944915&redirect_uri=http%3A%2F%2Flocalhost%3A9005&login_hint=iamdiyaajay%40gmail.com
+[info] 
+[info] Waiting for authentication...
+[debug] [2026-08-07T18:22:35.810Z] >>> [apiv2][query] POST https://accounts.google.com/o/oauth2/token [none]
+[debug] [2026-08-07T18:22:35.811Z] >>> [apiv2][body] POST https://accounts.google.com/o/oauth2/token [omitted]
+[debug] [2026-08-07T18:22:36.102Z] Token Fetch Error: FirebaseError: FetchError: Invalid response body while trying to fetch https://accounts.google.com/o/oauth2/token: Premature close
+    at RetryOperation._fn (C:\Users\Diya\AppData\Roaming\npm\node_modules\firebase-tools\lib\apiv2.js:317:88)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+[error] Authentication Error: Your credentials are no longer valid. Please run firebase login --reauth
+
+For CI servers and headless environments, generate a new token with firebase login:ci
+[debug] [2026-08-07T18:22:36.116Z] >>> [apiv2][query] POST https://auth.firebase.tools/attest [none]
+[debug] [2026-08-07T18:22:36.116Z] >>> [apiv2][body] POST https://auth.firebase.tools/attest {"session_id":"0fe7f2a5-e9a0-47af-99e0-527045513402"}
+[debug] [2026-08-07T18:22:36.680Z] <<< [apiv2][status] POST https://auth.firebase.tools/attest 200
+[debug] [2026-08-07T18:22:36.680Z] <<< [apiv2][body] POST https://auth.firebase.tools/attest {"token":"ISZkamJts9SdOvFtfF0At4EcUhlprKUbyRycZv2sFYg"}
+[info] 
+[info] To sign in to the Firebase CLI:
+[info] 
+[info] 1. Take note of your session ID:
+[info] 
+[info]    0FE7F
+[info] 
+[info] 2. Visit the URL below on any device and follow the instructions to get your code:
+[info] 
+[info]    https://auth.firebase.tools/login?code_challenge=Gjvf-VxuEDQgUgw5vn4wuT0RLtWaltpdYXzbmBTuZRs&session=0fe7f2a5-e9a0-47af-99e0-527045513402&attest=ISZkamJts9SdOvFtfF0At4EcUhlprKUbyRycZv2sFYg
+[info] 
+[info] 3. Paste or enter the authorization code below once you have it:
+[info] 
