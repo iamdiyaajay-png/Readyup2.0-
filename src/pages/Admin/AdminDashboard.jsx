@@ -94,6 +94,21 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleWipeStudentProgress = async (studentId) => {
+    if (!window.confirm("Are you sure you want to completely reset this student's readiness score and cert points to zero?")) return;
+    try {
+      await updateDoc(doc(db, 'users', studentId), {
+        readinessScore: 0,
+        certPoints: 0,
+        readinessBreakdown: {}
+      });
+      alert('Student progress successfully reset to zero.');
+    } catch (err) {
+      console.error('Failed to wipe student progress:', err);
+      alert('Error wiping progress: ' + err.message);
+    }
+  };
+
   const [activeTab, setActiveTab] = useState('approvals'); // 'approvals' | 'assignments' | 'history' | 'settings'
 
   // Firestore collections states
@@ -710,23 +725,31 @@ export default function AdminDashboard() {
                             </span>
                           </div>
 
-                          <div className="flex items-center gap-2">
-                            <select
-                              value={student.mentorId || ''}
-                              onChange={(e) => handleAssignMentor(student.uid, e.target.value)}
-                              className="px-3 py-2 bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text-primary focus:outline-none cursor-pointer"
+                          <div className="flex flex-col md:flex-row items-end md:items-center gap-3">
+                            <div className="flex items-center gap-2">
+                              <select
+                                value={student.mentorId || ''}
+                                onChange={(e) => handleAssignMentor(student.uid, e.target.value)}
+                                className="px-3 py-2 bg-brand-bg border border-brand-border rounded-xl text-xs text-brand-text-primary focus:outline-none cursor-pointer"
+                              >
+                                <option value="">Unassigned</option>
+                                {mentors.map((m) => {
+                                  const count = students.filter(s => s.mentorId === m.uid).length;
+                                  return (
+                                    <option key={m.uid} value={m.uid}>
+                                      {m.name} ({count} student{count !== 1 ? 's' : ''} assigned{m.organization ? ` • ${m.organization}` : ''})
+                                    </option>
+                                  );
+                                })}
+                              </select>
+                              <UserPlus size={14} className="text-brand-text-muted shrink-0" />
+                            </div>
+                            <button
+                              onClick={() => handleWipeStudentProgress(student.uid)}
+                              className="px-3 py-1.5 rounded-lg border border-red-900/30 text-[10px] font-bold text-red-400 hover:bg-red-950/20 hover:text-red-300 transition-colors cursor-pointer whitespace-nowrap"
                             >
-                              <option value="">Unassigned</option>
-                              {mentors.map((m) => {
-                                const count = students.filter(s => s.mentorId === m.uid).length;
-                                return (
-                                  <option key={m.uid} value={m.uid}>
-                                    {m.name} ({count} student{count !== 1 ? 's' : ''} assigned{m.organization ? ` • ${m.organization}` : ''})
-                                  </option>
-                                );
-                              })}
-                            </select>
-                            <UserPlus size={14} className="text-brand-text-muted shrink-0" />
+                              Wipe Progress
+                            </button>
                           </div>
                         </div>
                       </div>

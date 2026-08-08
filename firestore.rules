@@ -66,8 +66,16 @@ service cloud.firestore {
       allow update: if isAuthenticated() && isAdmin();
       allow update: if isAuthenticated()
         && request.auth.uid == uid
-        && !('role' in request.resource.data.diff(resource.data).affectedKeys())
-        && !('status' in request.resource.data.diff(resource.data).affectedKeys());
+        && (
+          (
+            !('role' in request.resource.data.diff(resource.data).affectedKeys()) &&
+            !('status' in request.resource.data.diff(resource.data).affectedKeys())
+          ) || (
+            resource.data.status == 'rejected' &&
+            request.resource.data.role == 'pending' &&
+            request.resource.data.status == 'pending'
+          )
+        );
       allow update: if isAuthenticated() && isMentor()
         && resource.data.role == 'student'
         && resource.data.mentorId == request.auth.uid

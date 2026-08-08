@@ -1,6 +1,8 @@
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ROUTES } from './routes';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '../firebase';
 
 // Layouts
 import DashboardLayout from '../layouts/DashboardLayout';
@@ -70,6 +72,19 @@ function AuthGuard({ children }) {
     return <Navigate to={ROUTES.WAITING_APPROVAL} replace />;
   }
 
+  const handleReapply = async () => {
+    try {
+      await updateDoc(doc(db, 'users', user.uid), {
+        status: 'pending',
+        role: 'pending',
+        profileCompletion: 0,
+        lastActivity: new Date().toISOString()
+      });
+    } catch (err) {
+      console.error('Failed to reset account', err);
+    }
+  };
+
   if (user.status === 'rejected') {
     return (
       <div className="min-h-screen bg-brand-bg flex flex-col items-center justify-center p-6 text-center">
@@ -81,10 +96,10 @@ function AuthGuard({ children }) {
           Unfortunately, your application to join ReadyUp 2.0 has been rejected by the administrator.
         </p>
         <button
-          onClick={() => window.location.reload()}
-          className="mt-6 px-5 py-2.5 bg-brand-accent text-brand-bg hover:bg-brand-accent-hover font-bold rounded-xl text-xs transition-colors"
+          onClick={handleReapply}
+          className="mt-6 px-5 py-2.5 bg-brand-accent text-brand-bg hover:bg-brand-accent-hover font-bold rounded-xl text-xs transition-colors cursor-pointer"
         >
-          Check Again
+          Re-apply Now
         </button>
       </div>
     );
