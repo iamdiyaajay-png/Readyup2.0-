@@ -29,6 +29,7 @@ export default function Scheduler() {
   const [timeSlot, setTimeSlot] = useState('10:00 - 11:00');
   const [type, setType] = useState('Frontend Architecture Mock');
   const [customType, setCustomType] = useState('');
+  const [customTimeSlot, setCustomTimeSlot] = useState('');
   const [success, setSuccess] = useState(false);
 
   // 1. Fetch Student's mentor name dynamically
@@ -96,6 +97,7 @@ export default function Scheduler() {
     }
 
     const resolvedType = type === 'Other' ? (customType.trim() || 'Other') : type;
+    const resolvedTimeSlot = timeSlot === 'Other' ? (customTimeSlot.trim() || 'Other') : timeSlot;
 
     const newInt = {
       studentId: user.uid,
@@ -104,7 +106,7 @@ export default function Scheduler() {
       mentorName: mentorName,
       type: resolvedType,
       date,
-      timeSlot,
+      timeSlot: resolvedTimeSlot,
       status: 'requested',
       meetLink: '',
       createdAt: new Date().toISOString()
@@ -223,14 +225,31 @@ export default function Scheduler() {
                   <label className="text-[10px] font-semibold text-brand-text-secondary uppercase">Time Slot</label>
                   <select
                     value={timeSlot}
-                    onChange={(e) => setTimeSlot(e.target.value)}
+                    onChange={(e) => { setTimeSlot(e.target.value); setCustomTimeSlot(''); }}
                     className="w-full px-3 py-2.5 bg-brand-bg/50 border border-brand-border rounded-xl text-xs text-brand-text-primary focus:outline-none"
                   >
                     <option value="10:00 - 11:00">10:00 - 11:00 AM</option>
                     <option value="11:30 - 12:30">11:30 AM - 12:30 PM</option>
                     <option value="14:00 - 15:00">02:00 - 03:00 PM</option>
                     <option value="16:00 - 17:00">04:00 - 05:00 PM</option>
+                    <option value="Other">Other (Specify Below)</option>
                   </select>
+
+                  {timeSlot === 'Other' && (
+                    <div className="mt-3">
+                      <label className="text-[10px] font-semibold text-brand-text-secondary uppercase block mb-1">
+                        Preferred Time Slot
+                      </label>
+                      <input
+                        type="text"
+                        value={customTimeSlot}
+                        onChange={(e) => setCustomTimeSlot(e.target.value)}
+                        placeholder="e.g. 06:00 PM - 07:00 PM"
+                        className="w-full px-3 py-2 bg-brand-bg/50 border border-brand-accent/40 rounded-xl text-xs text-brand-text-primary focus:outline-none focus:border-brand-accent transition-colors"
+                        required
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <button
