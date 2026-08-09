@@ -127,11 +127,11 @@ export default function AdminDashboard() {
   // Email send feedback: { [userId]: 'sent' | 'skipped' | 'error' }
   const [emailStatus, setEmailStatus] = useState({});
 
-  // 1. Fetch pending approvals (role !== 'pending', status in pending/info_requested)
+  // 1. Fetch pending approvals (role == 'pending' and profileCompletion == 100)
   useEffect(() => {
     const q = query(
       collection(db, 'users'),
-      where('status', 'in', ['pending', 'info_requested'])
+      where('role', '==', 'pending')
     );
 
     const unsubscribe = onSnapshot(q, 
@@ -139,10 +139,13 @@ export default function AdminDashboard() {
         const users = [];
         snapshot.forEach((docSnap) => {
           const data = docSnap.data();
-          // Decrypt sensitive form fields for admin review
-          const decrypted = data.encryptedDetails ? decryptData(data.encryptedDetails) : {};
-          const decryptedProfile = data.encryptedProfile ? decryptData(data.encryptedProfile) : {};
-          users.push({ id: docSnap.id, ...data, ...(decryptedProfile || {}), ...(decrypted || {}) });
+          // Only show users who finished onboarding and aren't already approved/rejected
+          if (data.profileCompletion === 100 && data.status !== 'rejected' && data.status !== 'approved') {
+            // Decrypt sensitive form fields for admin review
+            const decrypted = data.encryptedDetails ? decryptData(data.encryptedDetails) : {};
+            const decryptedProfile = data.encryptedProfile ? decryptData(data.encryptedProfile) : {};
+            users.push({ id: docSnap.id, ...data, ...(decryptedProfile || {}), ...(decrypted || {}) });
+          }
         });
         setPendingUsers(users);
       },
