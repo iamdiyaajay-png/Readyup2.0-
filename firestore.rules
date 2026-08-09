@@ -216,33 +216,6 @@ service cloud.firestore {
     }
 
     // ────────────────────────────────────────────────
-    // mentorResumeReviews — resume reviews assigned to mentors
-    // ────────────────────────────────────────────────
-    match /mentorResumeReviews/{id} {
-      // Student can create their own review requests
-      allow create: if isAuthenticated() &&
-        request.resource.data.studentId == request.auth.uid;
-
-      // Student can read their own; Mentor can read certs assigned to them; Admin can read all
-      allow read: if isAuthenticated() && (
-        resource.data.studentId == request.auth.uid ||
-        resource.data.mentorId  == request.auth.uid ||
-        isAdmin()
-      );
-
-      // Mentor can update (edit resume, add suggestions); student can update (resubmit)
-      allow update: if isAuthenticated() && (
-        resource.data.studentId == request.auth.uid ||
-        resource.data.mentorId  == request.auth.uid ||
-        isAdmin()
-      );
-
-      allow delete: if isAuthenticated() && (
-        resource.data.studentId == request.auth.uid || isAdmin()
-      );
-    }
-
-    // ────────────────────────────────────────────────
     // certificate_chunks — chunked image storage for certs
     // (used by binaryStorageService.js)
     // ────────────────────────────────────────────────
