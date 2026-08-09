@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Outlet, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Sidebar from '../components/common/Sidebar';
@@ -6,6 +7,7 @@ import { ROUTES } from '../router/routes';
 
 export default function DashboardLayout() {
   const { user, loading } = useAuth();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   if (loading) {
     return (
@@ -24,15 +26,15 @@ export default function DashboardLayout() {
   return (
     <div className="min-h-screen bg-brand-bg flex">
       {/* Sidebar Navigation */}
-      <Sidebar />
+      <Sidebar isOpen={mobileMenuOpen} setIsOpen={setMobileMenuOpen} />
 
       {/* Main View Area */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Navbar */}
-        <Navbar />
+        <Navbar toggleSidebar={() => setMobileMenuOpen(!mobileMenuOpen)} />
 
         {/* Dynamic Nested Content */}
-        <main className="flex-1 overflow-y-auto p-8">
+        <main className="flex-1 overflow-y-auto p-4 md:p-8 w-full max-w-full">
           <div className="max-w-7xl mx-auto space-y-6 animate-fade-in">
             <Outlet />
           </div>

@@ -1,9 +1,9 @@
 import { useAuth } from '../../context/AuthContext';
-import { Award, Bell, Shield, LogOut, Home } from 'lucide-react';
+import { Award, Bell, Shield, LogOut, Home, Menu } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '../../router/routes';
 
-export default function Navbar() {
+export default function Navbar({ toggleSidebar }) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -13,18 +13,28 @@ export default function Navbar() {
   };
 
   return (
-    <header className="h-16 border-b border-brand-border/60 bg-brand-card/30 backdrop-blur-md px-8 flex items-center justify-between sticky top-0 z-40">
-      <div>
-        <h2 className="text-base font-semibold text-brand-text-primary">
-          Welcome back, {user?.displayName || user?.name || 'User'}!
-        </h2>
-        <p className="text-xs text-brand-text-secondary mt-0.5">
-          {user?.role === 'admin'
-            ? 'Manage user approvals, assign mentors, and customize settings.'
-            : user?.role === 'mentor'
-            ? 'Monitor and guide your students to success.'
-            : 'Track your placement readiness and update your profile.'}
-        </p>
+    <header className="h-16 border-b border-brand-border/60 bg-brand-card/30 backdrop-blur-md px-4 md:px-8 flex items-center justify-between sticky top-0 z-30">
+      <div className="flex items-center gap-3">
+        {toggleSidebar && (
+          <button 
+            onClick={toggleSidebar}
+            className="md:hidden p-2 text-brand-text-secondary hover:text-brand-text-primary hover:bg-brand-card rounded-xl transition-all cursor-pointer"
+          >
+            <Menu size={20} />
+          </button>
+        )}
+        <div className="hidden sm:block">
+          <h2 className="text-base font-semibold text-brand-text-primary">
+            Welcome back, {user?.displayName || user?.name || 'User'}!
+          </h2>
+          <p className="text-xs text-brand-text-secondary mt-0.5 hidden lg:block">
+            {user?.role === 'admin'
+              ? 'Manage user approvals, assign mentors, and customize settings.'
+              : user?.role === 'mentor'
+              ? 'Monitor and guide your students to success.'
+              : 'Track your placement readiness and update your profile.'}
+          </p>
+        </div>
       </div>
 
       <div className="flex items-center gap-4">
