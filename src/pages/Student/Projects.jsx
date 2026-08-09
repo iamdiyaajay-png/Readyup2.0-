@@ -171,8 +171,8 @@ export default function Projects() {
 
       {/* Add Project Modal Overlay */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="w-full max-w-lg bg-brand-card border border-brand-border p-8 rounded-3xl relative">
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm p-4 overflow-y-auto animate-fade-in flex items-start justify-center">
+          <div className="w-full max-w-lg bg-brand-card border border-brand-border p-8 rounded-3xl relative my-8">
             <button
               onClick={() => setShowAddModal(false)}
               className="absolute top-4 right-4 text-brand-text-secondary hover:text-brand-text-primary"

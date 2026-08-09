@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { db } from '../../firebase';
 import { doc, updateDoc, increment, getDoc, arrayUnion } from 'firebase/firestore';
 import {
@@ -26,12 +26,17 @@ export default function CertReviewModal({ cert, mentorUid, onClose }) {
   const [loading, setLoading]   = useState(null); // 'approve' | 'reject' | 'reupload' | null
   const [done, setDone]         = useState(false);
   const [doneMsg, setDoneMsg]   = useState('');
+  const [editedScore, setEditedScore] = useState(cert?.geminiScore || 2);
+
+  useEffect(() => {
+    if (cert) setEditedScore(cert.geminiScore || 2);
+  }, [cert]);
 
   if (!cert) return null;
 
   const ocrFields  = cert.ocrFields  || {};
   const fraudFlags = cert.geminiFraudFlags || [];
-  const certScore  = cert.geminiScore || 2;
+  const certScore  = editedScore;
   const scoreConf  = CERT_SCORE_CONFIG[certScore] || CERT_SCORE_CONFIG[2];
   const authConf   = cert.geminiAuthConfidence ?? 70;
   const category   = cert.geminiSkillCategory || ocrFields.category || 'Programming';
@@ -305,6 +310,18 @@ export default function CertReviewModal({ cert, mentorUid, onClose }) {
                         className={s <= certScore ? scoreConf.color : 'text-brand-border'}
                         fill={s <= certScore ? 'currentColor' : 'none'} />
                     ))}
+                  </div>
+                  <div className="mt-3 flex items-center justify-between border-t border-brand-border/40 pt-2">
+                    <span className={`text-[9px] font-bold ${scoreConf.color}`}>Modify Score:</span>
+                    <select 
+                      value={editedScore} 
+                      onChange={(e) => setEditedScore(Number(e.target.value))}
+                      className="text-[10px] bg-brand-card border border-brand-border rounded px-1.5 py-0.5 focus:outline-none focus:border-brand-accent text-brand-text-primary"
+                    >
+                      {[1,2,3,4,5].map(v => (
+                        <option key={v} value={v}>{v} - {CERT_SCORE_CONFIG[v]?.label}</option>
+                      ))}
+                    </select>
                   </div>
                   <p className={`text-[9px] mt-1.5 font-bold ${scoreConf.color}`}>+{certScore} pts → {category}</p>
                 </div>

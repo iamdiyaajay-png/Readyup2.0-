@@ -19,7 +19,22 @@ import { logCourseRevoked } from '../../services/activityLog';
  */
 export default function StudentDetailModal({ student, mentorUid, onClose }) {
   const [courses, setCourses] = useState([]);
+  const [projects, setProjects] = useState([]);
   const [revoking, setRevoking] = useState(null);
+
+  useEffect(() => {
+    if (!student?.id) return;
+    const q = query(
+      collection(db, 'projects'),
+      where('studentId', '==', student.id)
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      const list = [];
+      snap.forEach((d) => list.push({ id: d.id, ...d.data() }));
+      setProjects(list);
+    });
+    return () => unsub();
+  }, [student?.id]);
 
   useEffect(() => {
     if (!student?.id) return;
@@ -171,6 +186,53 @@ export default function StudentDetailModal({ student, mentorUid, onClose }) {
                     className="px-2.5 py-1 rounded-full bg-brand-card border border-brand-border text-[10px] font-semibold text-brand-text-secondary">
                     {skill}
                   </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Projects */}
+          {projects.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-[10px] font-bold text-brand-text-muted uppercase tracking-wider flex items-center gap-1">
+                <Code2 size={11} /> Projects ({projects.length})
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {projects.map((p) => (
+                  <div key={p.id} className="p-3 rounded-xl bg-brand-bg/40 border border-brand-border/60">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-semibold text-brand-text-primary truncate">{p.title}</p>
+                      <div className="flex gap-2">
+                        {p.githubUrl && p.githubUrl !== '#' && (
+                          <a href={p.githubUrl} target="_blank" rel="noreferrer" className="text-brand-text-muted hover:text-brand-text-primary">
+                            <Github size={12} />
+                          </a>
+                        )}
+                        {p.liveUrl && p.liveUrl !== '#' && (
+                          <a href={p.liveUrl} target="_blank" rel="noreferrer" className="text-brand-text-muted hover:text-brand-accent">
+                            <ExternalLink size={12} />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                    {p.description && (
+                      <p className="text-[10px] text-brand-text-secondary mt-1.5 line-clamp-2">{p.description}</p>
+                    )}
+                    {p.techStack?.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {p.techStack.slice(0, 3).map((tech) => (
+                          <span key={tech} className="px-1.5 py-0.5 rounded-md bg-brand-card border border-brand-border text-[8px] text-brand-text-secondary">
+                            {tech}
+                          </span>
+                        ))}
+                        {p.techStack.length > 3 && (
+                          <span className="px-1.5 py-0.5 rounded-md bg-transparent text-[8px] text-brand-text-muted">
+                            +{p.techStack.length - 3} more
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 ))}
               </div>
             </div>
