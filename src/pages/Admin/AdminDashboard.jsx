@@ -127,20 +127,24 @@ export default function AdminDashboard() {
   // Email send feedback: { [userId]: 'sent' | 'skipped' | 'error' }
   const [emailStatus, setEmailStatus] = useState({});
 
-  // 1. Fetch pending approvals (role == 'pending' and profileCompletion == 100)
+  // 1. Fetch pending approvals (Catch-all for any user not approved/rejected who finished onboarding)
   useEffect(() => {
-    const q = query(
-      collection(db, 'users'),
-      where('role', '==', 'pending')
-    );
+    // Fetch all users to ensure we catch older accounts that might have corrupted status/role fields
+    const q = query(collection(db, 'users'));
 
     const unsubscribe = onSnapshot(q, 
       (snapshot) => {
         const users = [];
         snapshot.forEach((docSnap) => {
           const data = docSnap.data();
-          // Only show users who finished onboarding and aren't already approved/rejected
-          if (data.profileCompletion === 100 && data.status !== 'rejected' && data.status !== 'approved') {
+          // Only show users who aren't already approved, rejected, or admin.
+          // We intentionally remove the profileCompletion check here so the Admin can see 
+          // ANY stuck legacy user and either approve them or Reject them (which allows them to reapply).
+          if (
+            data.role !== 'admin' &&
+            data.status !== 'approved' &&
+            data.status !== 'rejected'
+          ) {
             // Decrypt sensitive form fields for admin review
             const decrypted = data.encryptedDetails ? decryptData(data.encryptedDetails) : {};
             const decryptedProfile = data.encryptedProfile ? decryptData(data.encryptedProfile) : {};
