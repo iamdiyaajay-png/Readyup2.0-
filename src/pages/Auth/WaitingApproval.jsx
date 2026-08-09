@@ -84,22 +84,22 @@ export default function WaitingApproval() {
 
         {/* Action Buttons */}
         <div className="space-y-3">
-          {isInfoRequested ? (
-            <button
-              onClick={handleEditProfile}
-              disabled={loading}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-yellow-500 hover:bg-yellow-600 text-brand-bg font-extrabold text-xs transition-all cursor-pointer shadow-md shadow-yellow-500/10 disabled:opacity-50"
-            >
-              {loading ? (
-                <div className="w-4 h-4 rounded-full border-2 border-brand-bg/25 border-t-brand-bg animate-spin"></div>
-              ) : (
-                <>
-                  <Edit size={14} />
-                  <span>Update Profile Details</span>
-                </>
-              )}
-            </button>
-          ) : (
+          <button
+            onClick={handleEditProfile}
+            disabled={loading}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-yellow-500 hover:bg-yellow-600 text-brand-bg font-extrabold text-xs transition-all cursor-pointer shadow-md shadow-yellow-500/10 disabled:opacity-50"
+          >
+            {loading ? (
+              <div className="w-4 h-4 rounded-full border-2 border-brand-bg/25 border-t-brand-bg animate-spin"></div>
+            ) : (
+              <>
+                <Edit size={14} />
+                <span>{isInfoRequested ? 'Update Profile Details' : 'Restart / Edit Registration'}</span>
+              </>
+            )}
+          </button>
+
+          {!isInfoRequested && (
             <div className="text-[10px] text-brand-text-muted font-medium py-2">
               Waiting in queue. This page will refresh automatically.
             </div>
