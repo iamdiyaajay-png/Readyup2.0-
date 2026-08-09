@@ -8,7 +8,7 @@ import {
 import {
   Users, BookOpen, Calendar, Send, Check, X, Award,
   Clock, ChevronDown, ChevronUp, Plus, Trash2, Activity,
-  Bell, Eye, ShieldCheck, RefreshCw, Zap
+  Bell, Eye, ShieldCheck, RefreshCw, Zap, FileText
 } from 'lucide-react';
 import {
   logCoursePushed, logStudentAccepted, logQuizApproved
@@ -19,6 +19,7 @@ import { retrieveCertificateBinary } from '../../services/binaryStorageService';
 import ActivityFeed from '../../components/common/ActivityFeed';
 import StudentDetailModal from '../../components/Mentor/StudentDetailModal';
 import CertReviewModal from '../../components/Mentor/CertReviewModal';
+import ResumeReviewModal from '../../components/Mentor/ResumeReviewModal';
 
 export default function MentorDashboard() {
   const { user } = useAuth();
@@ -54,6 +55,10 @@ export default function MentorDashboard() {
   const [certPending, setCertPending] = useState([]);
   const [reviewCert, setReviewCert] = useState(null);
   const [certImageLoading, setCertImageLoading] = useState(false);
+
+  // ── Mentor Resume Reviews ───
+  const [pendingResumeReviews, setPendingResumeReviews] = useState([]);
+  const [reviewResumeModalItem, setReviewResumeModalItem] = useState(null);
 
   // Load cert + binary image, then open modal
   const handleOpenCertReview = async (cert) => {
@@ -195,6 +200,25 @@ export default function MentorDashboard() {
     }, (err) => {
       console.warn('certPending collection not ready yet:', err.message);
       setCertPending([]);
+    });
+    return () => unsub();
+  }, [user?.uid]);
+
+  // Sync mentorResumeReviews for this mentor
+  useEffect(() => {
+    if (!user?.uid) return;
+    const q = query(
+      collection(db, 'mentorResumeReviews'),
+      where('mentorId', '==', user.uid),
+      where('status', '==', 'pending')
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      const list = [];
+      snap.forEach((d) => list.push({ id: d.id, ...d.data() }));
+      setPendingResumeReviews(list);
+    }, (err) => {
+      console.warn('mentorResumeReviews collection not ready yet:', err.message);
+      setPendingResumeReviews([]);
     });
     return () => unsub();
   }, [user?.uid]);
@@ -407,6 +431,12 @@ export default function MentorDashboard() {
           onClose={() => setReviewCert(null)}
         />
       )}
+      {reviewResumeModalItem && (
+        <ResumeReviewModal
+          review={reviewResumeModalItem}
+          onClose={() => setReviewResumeModalItem(null)}
+        />
+      )}
 
       {/* Header + Tabs */}
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
@@ -421,6 +451,7 @@ export default function MentorDashboard() {
         {[
           { id: 'dashboard', label: 'Dashboard', icon: Activity, badge: null },
           { id: 'students',  label: 'My Students', icon: Users, badge: fullStudents.length },
+          { id: 'resumes',   label: 'Resumes', icon: FileText, badge: pendingResumeReviews.length || null },
         ].map(({ id, label, icon: Icon, badge }) => (
           <button
             key={id}
@@ -572,16 +603,61 @@ export default function MentorDashboard() {
         </div>
       )}
 
+      {/* ═══════ RESUMES TAB ═══════ */}
+      {activeTab === 'resumes' && (
+        <div className="space-y-4">
+          <h2 className="text-xl font-bold text-brand-text-primary flex items-center gap-2">
+            <FileText size={20} className="text-brand-accent" />
+            Resume Review Requests
+          </h2>
+          
+          {pendingResumeReviews.length === 0 ? (
+            <div className="glass-card p-12 rounded-3xl text-center">
+              <FileText size={32} className="text-brand-text-muted mx-auto mb-3" />
+              <p className="text-sm font-bold text-brand-text-primary">No pending reviews</p>
+              <p className="text-xs text-brand-text-muted mt-1">When your students submit their resumes for review, they will appear here.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {pendingResumeReviews.map((review) => (
+                <div key={review.id} className="glass-card p-5 rounded-2xl border border-brand-border flex flex-col h-full">
+                  <div className="flex justify-between items-start mb-3">
+                    <div>
+                      <h3 className="font-bold text-brand-text-primary text-sm">{review.studentName}</h3>
+                      <p className="text-[10px] text-brand-text-muted">Requested on: {new Date(review.createdAt).toLocaleDateString()}</p>
+                    </div>
+                    <span className="px-2 py-1 rounded bg-yellow-950/30 text-yellow-500 text-[10px] font-bold uppercase tracking-wider">
+                      Pending
+                    </span>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs text-brand-text-secondary line-clamp-3 mb-4 italic">"{review.originalText.substring(0, 150)}..."</p>
+                  </div>
+                  <button
+                    onClick={() => setReviewResumeModalItem(review)}
+                    className="w-full py-2 rounded-xl bg-brand-accent text-brand-bg font-bold text-xs hover:bg-brand-accent-hover transition-colors shadow-md shadow-brand-accent/20 flex items-center justify-center gap-1.5"
+                  >
+                    <Eye size={14} />
+                    Review Resume
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ═══════ DASHBOARD TAB ═══════ */}
       {activeTab === 'dashboard' && <>
 
       {/* Stat Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
         {[
           { label: 'Accepted Students', value: acceptedCount,             color: 'text-brand-accent' },
           { label: 'Quiz Pending',      value: quizPendingCourses.length, color: 'text-yellow-400' },
           { label: 'Interviews',        value: pendingInterviews.length,  color: 'text-orange-400' },
           { label: 'Cert Alerts',       value: certPending.length,        color: 'text-red-400' },
+          { label: 'Resume Reviews',    value: pendingResumeReviews.length,color: 'text-indigo-400' },
         ].map(({ label, value, color }) => (
           <div key={label} className="glass-card p-5 rounded-2xl border border-brand-border/60">
             <p className="text-[10px] text-brand-text-muted uppercase tracking-wider">{label}</p>

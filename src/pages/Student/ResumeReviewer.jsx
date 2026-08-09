@@ -1,8 +1,8 @@
-import { useState, useRef } from 'react';
-import { FileText, Sparkles, CheckCircle, AlertTriangle, ListChecks, Upload, X, Briefcase, Target, ChevronRight } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { FileText, Sparkles, CheckCircle, AlertTriangle, ListChecks, Upload, X, Briefcase, Target, ChevronRight, Send } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { db } from '../../firebase';
-import { collection, addDoc } from 'firebase/firestore';
+import { collection, addDoc, query, where, onSnapshot } from 'firebase/firestore';
 import { reviewResumeWithGemini, reviewResumeForJobWithGemini } from '../../services/gemini';
 import { logResumeReviewed } from '../../services/activityLog';
 
@@ -54,6 +54,48 @@ export default function ResumeReviewer() {
   // Job targeting
   const [jobTitle, setJobTitle] = useState('');
   const [jobMode, setJobMode] = useState(false); // toggles job-targeted analysis
+
+  // Mentor Review
+  const [mentorReviews, setMentorReviews] = useState([]);
+  const [sendingToMentor, setSendingToMentor] = useState(false);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    const q = query(
+      collection(db, 'mentorResumeReviews'),
+      where('studentId', '==', user.uid)
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      const list = [];
+      snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+      list.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      setMentorReviews(list);
+    });
+    return () => unsub();
+  }, [user?.uid]);
+
+  const handleSendToMentor = async () => {
+    if (!resumeText.trim() || !user?.mentorId) return;
+    setSendingToMentor(true);
+    try {
+      await addDoc(collection(db, 'mentorResumeReviews'), {
+        studentId: user.uid,
+        studentName: user.name || 'Student',
+        mentorId: user.mentorId,
+        originalText: resumeText.trim(),
+        editedText: '',
+        mentorSuggestions: '',
+        status: 'pending',
+        createdAt: new Date().toISOString()
+      });
+      alert('Resume successfully sent to your mentor for review!');
+    } catch (err) {
+      console.error('Error sending resume to mentor:', err);
+      alert('Failed to send resume to mentor.');
+    } finally {
+      setSendingToMentor(false);
+    }
+  };
 
   const handleFileChange = async (e) => {
     const file = e.target.files?.[0];
@@ -305,6 +347,24 @@ export default function ResumeReviewer() {
                 </>
               )}
             </button>
+
+            {user?.mentorId && (
+              <button
+                type="button"
+                onClick={handleSendToMentor}
+                disabled={sendingToMentor || extracting || !resumeText.trim()}
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border border-brand-border text-brand-text-primary font-bold text-sm hover:bg-brand-card transition-all cursor-pointer disabled:opacity-50 mt-2"
+              >
+                {sendingToMentor ? (
+                  <div className="w-5 h-5 rounded-full border-2 border-brand-text-secondary/25 border-t-brand-text-secondary animate-spin" />
+                ) : (
+                  <>
+                    <Send size={16} className="text-indigo-400" />
+                    <span>Send to Mentor for Review</span>
+                  </>
+                )}
+              </button>
+            )}
           </form>
         </div>
 
@@ -411,6 +471,51 @@ export default function ResumeReviewer() {
           )}
         </div>
       </div>
+
+      {/* Mentor Reviews History */}
+      {mentorReviews.length > 0 && (
+        <div className="glass-card p-6 rounded-3xl border border-brand-border space-y-4">
+          <h3 className="text-sm font-bold text-brand-text-primary flex items-center gap-2">
+            <Send size={16} className="text-brand-accent" />
+            <span>Mentor Resume Reviews</span>
+          </h3>
+          <div className="space-y-4">
+            {mentorReviews.map((review) => (
+              <div key={review.id} className="p-4 rounded-2xl bg-brand-bg/40 border border-brand-border/60">
+                <div className="flex justify-between items-center mb-3">
+                  <span className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase ${
+                    review.status === 'reviewed' ? 'bg-emerald-950/30 text-emerald-400' : 'bg-yellow-950/30 text-yellow-500'
+                  }`}>
+                    {review.status}
+                  </span>
+                  <span className="text-[10px] text-brand-text-muted">
+                    {new Date(review.createdAt).toLocaleDateString()}
+                  </span>
+                </div>
+                
+                {review.status === 'reviewed' ? (
+                  <div className="space-y-4">
+                    {review.mentorSuggestions && (
+                      <div className="p-3 bg-brand-card rounded-xl border border-brand-border/40">
+                        <span className="text-[10px] font-bold text-brand-text-muted uppercase tracking-wider block mb-1">Mentor Feedback</span>
+                        <p className="text-xs text-brand-text-secondary whitespace-pre-wrap">{review.mentorSuggestions}</p>
+                      </div>
+                    )}
+                    {review.editedText && (
+                      <div className="p-3 bg-brand-bg rounded-xl border border-brand-border/40">
+                        <span className="text-[10px] font-bold text-brand-text-muted uppercase tracking-wider block mb-1">Edited Resume</span>
+                        <p className="text-xs text-brand-text-primary font-mono whitespace-pre-wrap h-64 overflow-y-auto custom-scrollbar p-2">{review.editedText}</p>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-xs text-brand-text-muted">Your resume has been sent to your mentor and is pending review.</p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
