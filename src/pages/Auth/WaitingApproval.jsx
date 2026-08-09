@@ -16,6 +16,8 @@ export default function WaitingApproval() {
       const userRef = doc(db, 'users', user.uid);
       await updateDoc(userRef, {
         role: 'pending',
+        status: 'pending',
+        profileCompletion: 0,
         lastActivity: new Date().toISOString()
       });
     } catch (err) {
