@@ -297,8 +297,12 @@ export default function AdminDashboard() {
       });
 
       // ── Send welcome email (fire-and-forget; never blocks approval) ──
-      const userEmail = userData.email || userData.emailAddress || null;
-      const userName  = userData.name  || 'there';
+      const decryptedProfile = userData.encryptedProfile ? decryptData(userData.encryptedProfile) : {};
+      const decryptedDetails = userData.encryptedDetails ? decryptData(userData.encryptedDetails) : {};
+      
+      const userEmail = userData.email || userData.emailAddress || decryptedProfile?.email || null;
+      const userName  = userData.name || decryptedProfile?.name || decryptedDetails?.name || 'there';
+      
       if (userEmail) {
         sendApprovalEmail({ toEmail: userEmail, toName: userName, role: grantedRole })
           .then(() => setEmailStatus((prev) => ({ ...prev, [userId]: 'sent' })))
