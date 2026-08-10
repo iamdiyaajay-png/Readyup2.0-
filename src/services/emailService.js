@@ -37,7 +37,7 @@
 import emailjs from '@emailjs/browser';
 
 const SERVICE_ID  = 'service_r13z7l7';
-const TEMPLATE_ID = 'template_4zd28us';
+const TEMPLATE_ID = 'template_f7288hj';
 const PUBLIC_KEY  = '8C26Mv0LwRsuBOGxf';
 
 const APP_URL = 'https://readyup2-0.vercel.app';
