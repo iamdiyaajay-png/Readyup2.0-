@@ -9,7 +9,8 @@ import {
 import {
   Award, CheckCircle2, Clock, XCircle,
   MessageSquare, Sparkles, Zap, Activity,
-  RefreshCw, ShieldCheck, TrendingUp, TrendingDown
+  RefreshCw, ShieldCheck, TrendingUp, TrendingDown,
+  BookOpen, ExternalLink
 } from 'lucide-react';
 import ActivityFeed from '../../components/common/ActivityFeed';
 import { recalculateReadiness } from '../../services/recalcService';
@@ -37,6 +38,7 @@ export default function StudentDashboard() {
   const [certs, setCerts]                 = useState([]);
   const [refreshing, setRefreshing]       = useState(false);
   const [refreshMsg, setRefreshMsg]       = useState('');
+  const [suggestions, setSuggestions]     = useState([]);
 
   // Fetch project count
   useEffect(() => {
@@ -102,6 +104,19 @@ export default function StudentDashboard() {
       list.sort((a, b) => (a.createdAt > b.createdAt ? -1 : 1));
       setCerts(list);
     }, () => setCerts([]));
+    return () => unsub();
+  }, [user?.uid]);
+
+  // Fetch course suggestions
+  useEffect(() => {
+    if (!user?.uid) { setSuggestions([]); return; }
+    const q = query(collection(db, 'courseSuggestions'), where('studentId', '==', user.uid));
+    const unsub = onSnapshot(q, (snap) => {
+      const list = [];
+      snap.forEach((d) => list.push({ id: d.id, ...d.data() }));
+      list.sort((a, b) => (a.createdAt > b.createdAt ? -1 : 1));
+      setSuggestions(list);
+    });
     return () => unsub();
   }, [user?.uid]);
 
@@ -390,6 +405,29 @@ export default function StudentDashboard() {
             ))}
           </div>
         </div>
+
+        {/* Mentor Suggestions */}
+        {suggestions.length > 0 && (
+          <div className="glass-card p-6 rounded-3xl lg:col-span-3">
+            <div className="flex items-center gap-2 mb-4">
+              <BookOpen size={18} className="text-brand-accent" />
+              <h3 className="text-sm font-bold text-brand-text-primary">Suggested Skill Resources</h3>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {suggestions.map(s => (
+                <div key={s.id} className="p-4 rounded-2xl bg-brand-bg/30 border border-brand-border/60">
+                  <h4 className="text-xs font-bold text-brand-text-primary mb-1">{s.title}</h4>
+                  <p className="text-[10px] text-brand-text-muted capitalize mb-2">Status: {s.status}</p>
+                  {s.url && (
+                    <a href={s.url} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-[10px] font-bold text-brand-accent hover:underline">
+                      View Resource <ExternalLink size={10} />
+                    </a>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Activity Feed */}
         <div className="glass-card p-6 rounded-3xl lg:col-span-3">
