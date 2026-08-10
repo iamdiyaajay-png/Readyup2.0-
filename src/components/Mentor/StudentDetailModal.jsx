@@ -110,7 +110,7 @@ export default function StudentDetailModal({ student, mentorUid, onClose }) {
         </div>
 
         {/* Body — scrollable */}
-        <div className="overflow-y-auto flex-1 p-6 space-y-6">
+        <div className="overflow-y-auto flex-1 min-h-0 p-6 space-y-6">
 
           {/* Top stats row */}
           <div className="grid grid-cols-3 gap-4">
