@@ -15,11 +15,19 @@ service cloud.firestore {
         : null;
     }
 
+    // ── Helper: check if caller's email is in system/settings adminEmails
+    function isSystemAdminEmail() {
+      return isAuthenticated() &&
+             request.auth.token.email != null &&
+             exists(/databases/$(database)/documents/system/settings) &&
+             request.auth.token.email in get(/databases/$(database)/documents/system/settings).data.adminEmails;
+    }
+
     // ── Helper: is the caller an approved admin?
-    //    Reads from the user document — no hardcoded emails.
+    //    Reads from the user document or system/settings fallback.
     function isAdmin() {
       let data = getUserData();
-      return isAuthenticated() && data != null && data.role == 'admin';
+      return (isAuthenticated() && data != null && data.role == 'admin') || isSystemAdminEmail();
     }
 
     // ── Helper: is the caller an approved mentor?
@@ -55,10 +63,10 @@ service cloud.firestore {
         resource.data.role == 'pending'
       );
 
-      // New user creation — only the user themselves, and they cannot self-assign admin
+      // New user creation — only the user themselves, and they cannot self-assign admin unless they are one
       allow create: if isAuthenticated() 
         && request.auth.uid == uid
-        && (!('role' in request.resource.data) || request.resource.data.role != 'admin');
+        && (isAdmin() || !('role' in request.resource.data) || request.resource.data.role != 'admin');
 
       // Users may update their own doc BUT cannot change their own role or status
       // Admins can update any field on any document
