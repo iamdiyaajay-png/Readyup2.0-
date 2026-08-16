@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { FileText, Sparkles, CheckCircle, AlertTriangle, ListChecks, Upload, X, Briefcase, Target, ChevronRight } from 'lucide-react';
+import { FileText, Sparkles, CheckCircle, AlertTriangle, ListChecks, Upload, X, Briefcase, Target, ChevronRight, Send } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { db } from '../../firebase';
 import { collection, addDoc, doc, updateDoc } from 'firebase/firestore';
