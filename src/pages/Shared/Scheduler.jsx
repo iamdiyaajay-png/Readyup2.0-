@@ -13,11 +13,6 @@ import {
 } from 'firebase/firestore';
 import { Calendar as CalendarIcon, Clock, User, AlertCircle, ExternalLink } from 'lucide-react';
 
-function generateMeetLink() {
-  const roomCode = Math.random().toString(36).substring(2, 5) + '-' + Math.random().toString(36).substring(2, 6) + '-' + Math.random().toString(36).substring(2, 5);
-  return `https://meet.google.com/${roomCode}`;
-}
-
 export default function Scheduler() {
   const { user } = useAuth();
   
@@ -129,7 +124,7 @@ export default function Scheduler() {
       const updateData = { status: newStatus };
       
       if (newStatus === 'scheduled') {
-        updateData.meetLink = providedLink || generateMeetLink();
+        updateData.meetLink = providedLink || '';
       } else {
         updateData.meetLink = '';
       }
@@ -335,7 +330,7 @@ export default function Scheduler() {
                                 className="px-2 py-1 text-[10px] bg-brand-bg/50 border border-brand-border rounded focus:outline-none focus:border-brand-accent w-48 text-brand-text-primary placeholder:text-brand-text-muted"
                               />
                               <button
-                                onClick={() => handleAction(item.id, 'scheduled', customMeetLink.trim() || generateMeetLink())}
+                                onClick={() => handleAction(item.id, 'scheduled', customMeetLink.trim())}
                                 className="px-2.5 py-1 rounded-lg bg-brand-accent text-brand-bg text-[10px] font-bold hover:bg-brand-accent-hover transition-colors cursor-pointer"
                               >
                                 Confirm
@@ -350,7 +345,7 @@ export default function Scheduler() {
                           ) : (
                             <div className="flex items-center gap-1.5">
                               <button
-                                onClick={() => { setApprovingId(item.id); setCustomMeetLink(generateMeetLink()); }}
+                                onClick={() => { setApprovingId(item.id); setCustomMeetLink(''); }}
                                 className="px-2.5 py-1 rounded-lg bg-brand-accent text-brand-bg text-[10px] font-bold hover:bg-brand-accent-hover transition-colors cursor-pointer"
                               >
                                 Approve
