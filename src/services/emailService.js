@@ -36,9 +36,9 @@
 
 import emailjs from '@emailjs/browser';
 
-const SERVICE_ID  = 'service_r13z7l7';
-const TEMPLATE_ID = 'template_f7288hj';
-const PUBLIC_KEY  = '8C26Mv0LwRsuBOGxf';
+const SERVICE_ID  = import.meta.env.VITE_EMAILJS_SERVICE_ID;
+const TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID;
+const PUBLIC_KEY  = import.meta.env.VITE_EMAILJS_PUBLIC_KEY;
 
 const APP_URL = 'https://readyup2-0.vercel.app';
 
