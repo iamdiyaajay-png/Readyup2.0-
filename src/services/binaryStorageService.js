@@ -21,7 +21,7 @@ import {
 } from 'firebase/firestore';
 
 const CHUNK_SIZE = 600_000; // ~600KB of base64 per Firestore document
-const CHUNKS_COL = 'certificate_chunks';
+const DEFAULT_CHUNKS_COL = 'certificate_chunks';
 
 // ── Store ─────────────────────────────────────────────────────
 
@@ -44,9 +44,10 @@ function fileToBase64(file) {
  *
  * @param {File|Blob} file     The image or PDF-rendered-to-PNG file
  * @param {string}    certId   The certPending document ID (used as prefix)
+ * @param {string}    collectionName  Optional collection name (defaults to certificate_chunks)
  * @returns {Promise<{ chunkCount: number, fileType: string, fileName: string }>}
  */
-export async function storeCertificateBinary(file, certId) {
+export async function storeCertificateBinary(file, certId, collectionName = DEFAULT_CHUNKS_COL) {
   if (!file || !certId) throw new Error('file and certId are required');
 
   const base64DataUrl = await fileToBase64(file);
@@ -61,12 +62,12 @@ export async function storeCertificateBinary(file, certId) {
 
   // Write each chunk
   chunks.forEach((chunk, idx) => {
-    const chunkRef = doc(db, CHUNKS_COL, `${certId}_${idx}`);
+    const chunkRef = doc(db, collectionName, `${certId}_${idx}`);
     batch.set(chunkRef, { certId, index: idx, data: chunk });
   });
 
   // Write meta document
-  const metaRef = doc(db, CHUNKS_COL, `${certId}_meta`);
+  const metaRef = doc(db, collectionName, `${certId}_meta`);
   batch.set(metaRef, {
     certId,
     chunkCount: chunks.length,
@@ -87,20 +88,21 @@ export async function storeCertificateBinary(file, certId) {
  * Retrieve and reconstruct a certificate image as a dataURL.
  *
  * @param {string} certId  The certPending document ID
+ * @param {string} collectionName  Optional collection name
  * @returns {Promise<string|null>} Base64 dataURL (data:image/jpeg;base64,...) or null if not found
  */
-export async function retrieveCertificateBinary(certId) {
+export async function retrieveCertificateBinary(certId, collectionName = DEFAULT_CHUNKS_COL) {
   if (!certId) return null;
 
   // Get meta
-  const metaSnap = await getDoc(doc(db, CHUNKS_COL, `${certId}_meta`));
+  const metaSnap = await getDoc(doc(db, collectionName, `${certId}_meta`));
   if (!metaSnap.exists()) return null;
 
   const { chunkCount } = metaSnap.data();
 
   // Fetch all chunks in parallel
   const chunkPromises = Array.from({ length: chunkCount }, (_, i) =>
-    getDoc(doc(db, CHUNKS_COL, `${certId}_${i}`))
+    getDoc(doc(db, collectionName, `${certId}_${i}`))
   );
   const chunkSnaps = await Promise.all(chunkPromises);
 
@@ -118,20 +120,21 @@ export async function retrieveCertificateBinary(certId) {
 /**
  * Delete all stored chunks for a certificate.
  * @param {string} certId
+ * @param {string} collectionName  Optional collection name
  */
-export async function deleteCertificateBinary(certId) {
+export async function deleteCertificateBinary(certId, collectionName = DEFAULT_CHUNKS_COL) {
   if (!certId) return;
 
-  const metaSnap = await getDoc(doc(db, CHUNKS_COL, `${certId}_meta`));
+  const metaSnap = await getDoc(doc(db, collectionName, `${certId}_meta`));
   if (!metaSnap.exists()) return;
 
   const { chunkCount } = metaSnap.data();
   const batch = writeBatch(db);
 
   for (let i = 0; i < chunkCount; i++) {
-    batch.delete(doc(db, CHUNKS_COL, `${certId}_${i}`));
+    batch.delete(doc(db, collectionName, `${certId}_${i}`));
   }
-  batch.delete(doc(db, CHUNKS_COL, `${certId}_meta`));
+  batch.delete(doc(db, collectionName, `${certId}_meta`));
 
   await batch.commit();
 }
@@ -141,10 +144,11 @@ export async function deleteCertificateBinary(certId) {
 /**
  * Check whether a cert has stored binary chunks.
  * @param {string} certId
+ * @param {string} collectionName  Optional collection name
  * @returns {Promise<boolean>}
  */
-export async function hasCertificateBinary(certId) {
+export async function hasCertificateBinary(certId, collectionName = DEFAULT_CHUNKS_COL) {
   if (!certId) return false;
-  const snap = await getDoc(doc(db, CHUNKS_COL, `${certId}_meta`));
+  const snap = await getDoc(doc(db, collectionName, `${certId}_meta`));
   return snap.exists();
 }

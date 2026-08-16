@@ -2,9 +2,10 @@ import { useState, useRef } from 'react';
 import { FileText, Sparkles, CheckCircle, AlertTriangle, ListChecks, Upload, X, Briefcase, Target, ChevronRight } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { db } from '../../firebase';
-import { collection, addDoc } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc } from 'firebase/firestore';
 import { reviewResumeWithGemini, reviewResumeForJobWithGemini } from '../../services/gemini';
 import { logResumeReviewed } from '../../services/activityLog';
+import { storeCertificateBinary } from '../../services/binaryStorageService';
 
 // Extract text from PDF using pdfjs-dist (loaded dynamically to avoid build bloat)
 async function extractPDFText(file) {
@@ -55,6 +56,11 @@ export default function ResumeReviewer() {
   const [jobTitle, setJobTitle] = useState('');
   const [jobMode, setJobMode] = useState(false); // toggles job-targeted analysis
 
+  // Mentor Review
+  const [currentReviewId, setCurrentReviewId] = useState(null);
+  const [sendingToMentor, setSendingToMentor] = useState(false);
+  const [sentToMentor, setSentToMentor] = useState(false);
+
   const handleFileChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -102,6 +108,8 @@ export default function ResumeReviewer() {
 
     setLoading(true);
     setResult(null);
+    setCurrentReviewId(null);
+    setSentToMentor(false);
 
     try {
       let data;
@@ -113,7 +121,7 @@ export default function ResumeReviewer() {
       setResult(data);
 
       if (user?.uid) {
-        await addDoc(collection(db, 'resumeReviews'), {
+        const docRef = await addDoc(collection(db, 'resumeReviews'), {
           studentId: user.uid,
           atsScore: data.score,
           feedback: data.keyFeedback,
@@ -121,12 +129,42 @@ export default function ResumeReviewer() {
           jobTarget: jobMode && jobTitle.trim() ? jobTitle.trim() : null,
           createdAt: new Date().toISOString()
         });
+        setCurrentReviewId(docRef.id);
         await logResumeReviewed(user.uid, data.score);
       }
     } catch (err) {
       console.error('Resume review scan error:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSendToMentor = async () => {
+    if (!currentReviewId || !user?.mentorId) return;
+    setSendingToMentor(true);
+    try {
+      // 1. Update the document with mentor fields
+      const reviewRef = doc(db, 'resumeReviews', currentReviewId);
+      await updateDoc(reviewRef, {
+        mentorId: user.mentorId,
+        studentName: user.name || user.displayName || 'Student',
+        sentToMentor: true,
+        mentorStatus: 'pending',
+        resumeText: resumeText,
+        hasPdf: !!uploadedFile
+      });
+
+      // 2. Upload PDF chunks if exists
+      if (uploadedFile) {
+        await storeCertificateBinary(uploadedFile, currentReviewId, 'resume_chunks');
+      }
+
+      setSentToMentor(true);
+    } catch (err) {
+      console.error('Failed to send to mentor:', err);
+      alert('Failed to send to mentor. Please try again.');
+    } finally {
+      setSendingToMentor(false);
     }
   };
 
@@ -405,6 +443,33 @@ export default function ResumeReviewer() {
                       </span>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {/* Mentor Review Action */}
+              {user?.mentorId && currentReviewId && (
+                <div className="mt-6 p-4 rounded-2xl bg-indigo-950/20 border border-indigo-500/30 flex flex-col items-center text-center space-y-3">
+                  <h4 className="text-sm font-bold text-brand-text-primary">Want a Human Review?</h4>
+                  <p className="text-xs text-brand-text-secondary">
+                    Send this resume to your mentor for personalized feedback and suggestions.
+                  </p>
+                  <button
+                    onClick={handleSendToMentor}
+                    disabled={sendingToMentor || sentToMentor}
+                    className="flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-colors disabled:opacity-50 w-full sm:w-auto"
+                  >
+                    {sendingToMentor ? (
+                      <div className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                    ) : sentToMentor ? (
+                      <>
+                        <CheckCircle size={14} /> Sent to Mentor
+                      </>
+                    ) : (
+                      <>
+                        <Send size={14} /> Send to Mentor
+                      </>
+                    )}
+                  </button>
                 </div>
               )}
             </div>

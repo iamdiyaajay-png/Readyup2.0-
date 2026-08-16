@@ -19,6 +19,7 @@ import { retrieveCertificateBinary } from '../../services/binaryStorageService';
 import ActivityFeed from '../../components/common/ActivityFeed';
 import StudentDetailModal from '../../components/Mentor/StudentDetailModal';
 import CertReviewModal from '../../components/Mentor/CertReviewModal';
+import ReviewResumeModal from '../../components/Mentor/ReviewResumeModal';
 
 export default function MentorDashboard() {
   const { user } = useAuth();
@@ -54,6 +55,10 @@ export default function MentorDashboard() {
   const [certPending, setCertPending] = useState([]);
   const [reviewCert, setReviewCert] = useState(null);
   const [certImageLoading, setCertImageLoading] = useState(false);
+
+  // ── Resume Reviews ──────────────────────────────────────────
+  const [pendingResumeReviews, setPendingResumeReviews] = useState([]);
+  const [reviewResumeDoc, setReviewResumeDoc] = useState(null);
 
   // Load cert + binary image, then open modal
   const handleOpenCertReview = async (cert) => {
@@ -195,6 +200,26 @@ export default function MentorDashboard() {
     }, (err) => {
       console.warn('certPending collection not ready yet:', err.message);
       setCertPending([]);
+    });
+    return () => unsub();
+  }, [user?.uid]);
+
+  // Sync pending resume reviews
+  useEffect(() => {
+    if (!user?.uid) return;
+    const q = query(
+      collection(db, 'resumeReviews'),
+      where('mentorId', '==', user.uid),
+      where('sentToMentor', '==', true),
+      where('mentorStatus', '==', 'pending')
+    );
+    const unsub = onSnapshot(q, (snap) => {
+      const list = [];
+      snap.forEach((d) => list.push({ id: d.id, ...d.data() }));
+      setPendingResumeReviews(list);
+    }, (err) => {
+      console.warn('resumeReviews sync error:', err.message);
+      setPendingResumeReviews([]);
     });
     return () => unsub();
   }, [user?.uid]);
@@ -407,6 +432,12 @@ export default function MentorDashboard() {
           onClose={() => setReviewCert(null)}
         />
       )}
+      {reviewResumeDoc && (
+        <ReviewResumeModal
+          review={reviewResumeDoc}
+          onClose={() => setReviewResumeDoc(null)}
+        />
+      )}
 
       {/* Header + Tabs */}
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
@@ -582,6 +613,7 @@ export default function MentorDashboard() {
           { label: 'Quiz Pending',      value: quizPendingCourses.length, color: 'text-yellow-400' },
           { label: 'Interviews',        value: pendingInterviews.length,  color: 'text-orange-400' },
           { label: 'Cert Alerts',       value: certPending.length,        color: 'text-red-400' },
+          { label: 'Resume Reviews',    value: pendingResumeReviews.length, color: 'text-indigo-400' },
         ].map(({ label, value, color }) => (
           <div key={label} className="glass-card p-5 rounded-2xl border border-brand-border/60">
             <p className="text-[10px] text-brand-text-muted uppercase tracking-wider">{label}</p>
@@ -637,8 +669,37 @@ export default function MentorDashboard() {
         </div>
       )}
 
-      {/* Roster & Stats */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Pending Resume Reviews */}
+      {pendingResumeReviews.length > 0 && (
+        <div className="glass-card p-6 rounded-3xl border border-indigo-500/20 bg-indigo-950/5 mt-6">
+          <h3 className="text-sm font-bold text-indigo-400 mb-4 flex items-center gap-2">
+            <FileText size={16} />
+            <span>Pending Resume Reviews ({pendingResumeReviews.length})</span>
+          </h3>
+          <div className="space-y-3">
+            {pendingResumeReviews.map((req) => (
+              <div key={req.id} className="flex items-center justify-between p-3 rounded-2xl bg-brand-bg/40 border border-brand-border/60">
+                <div>
+                  <p className="text-xs font-bold text-brand-text-primary">
+                    {req.studentName || 'Student'}
+                  </p>
+                  <p className="text-[10px] text-brand-text-muted">
+                    AI Score: {req.atsScore}% {req.jobTarget && `| Target: ${req.jobTarget}`}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setReviewResumeDoc(req)}
+                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold transition-colors cursor-pointer"
+                >
+                  Review
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
         {/* Student Roster Table */}
         <div className="glass-card p-6 rounded-3xl lg:col-span-2 flex flex-col">
           <h3 className="text-sm font-bold text-brand-text-primary mb-4 flex items-center gap-2">
