@@ -143,8 +143,7 @@ export default function AdminDashboard() {
           if (
             data.role !== 'admin' &&
             data.status !== 'approved' &&
-            data.status !== 'rejected' &&
-            data.profileCompletion === 100
+            data.status !== 'rejected'
           ) {
             // Decrypt sensitive form fields for admin review
             const decrypted = data.encryptedDetails ? decryptData(data.encryptedDetails) : {};
