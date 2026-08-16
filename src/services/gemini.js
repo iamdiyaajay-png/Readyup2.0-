@@ -7,7 +7,7 @@
  */
 import { GoogleGenAI } from '@google/genai';
 
-const MODEL = 'gemini-1.5-flash-8b';
+const MODEL = 'gemini-flash-lite-latest';
 
 /** Get a configured GoogleGenAI client, or null if no API key. */
 function getClient() {
