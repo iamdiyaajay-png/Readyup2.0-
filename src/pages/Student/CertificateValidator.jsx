@@ -248,7 +248,11 @@ export default function CertificateValidator() {
           // E2EE: encrypt the notification message before sending to RTDB
           let encryptedPayload = null;
           if (isE2EESupported() && user.uid && user.mentorId) {
-            encryptedPayload = await encryptMessage(user.uid, user.mentorId, chatId, certMsgText);
+            try {
+              encryptedPayload = await encryptMessage(user.uid, user.mentorId, chatId, certMsgText);
+            } catch (encErr) {
+              console.warn('E2EE encryption failed (mentor likely missing public key). Falling back to plaintext.', encErr);
+            }
           }
 
           await sendMessage(chatId, {
