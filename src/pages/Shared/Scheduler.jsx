@@ -31,6 +31,8 @@ export default function Scheduler() {
   const [customType, setCustomType] = useState('');
   const [customTimeSlot, setCustomTimeSlot] = useState('');
   const [success, setSuccess] = useState(false);
+  const [approvingId, setApprovingId] = useState(null);
+  const [customMeetLink, setCustomMeetLink] = useState('');
 
   // 1. Fetch Student's mentor name dynamically
   useEffect(() => {
@@ -121,18 +123,20 @@ export default function Scheduler() {
     }
   };
 
-  const handleAction = async (id, newStatus) => {
+  const handleAction = async (id, newStatus, providedLink = null) => {
     try {
       const interviewRef = doc(db, 'mockInterviews', id);
       const updateData = { status: newStatus };
       
       if (newStatus === 'scheduled') {
-        updateData.meetLink = generateMeetLink();
+        updateData.meetLink = providedLink || generateMeetLink();
       } else {
         updateData.meetLink = '';
       }
       
       await updateDoc(interviewRef, updateData);
+      setApprovingId(null);
+      setCustomMeetLink('');
     } catch (err) {
       console.error('Failed to update interview status:', err);
     }
@@ -321,20 +325,44 @@ export default function Scheduler() {
                     {item.status === 'requested' && (
                       <>
                         {user?.role === 'mentor' || user?.role === 'admin' ? (
-                          <div className="flex items-center gap-1.5">
-                            <button
-                              onClick={() => handleAction(item.id, 'scheduled')}
-                              className="px-2.5 py-1 rounded-lg bg-brand-accent text-brand-bg text-[10px] font-bold hover:bg-brand-accent-hover transition-colors cursor-pointer"
-                            >
-                              Approve
-                            </button>
-                            <button
-                              onClick={() => handleAction(item.id, 'declined')}
-                              className="px-2.5 py-1 rounded-lg border border-brand-border text-brand-text-secondary text-[10px] font-bold hover:bg-red-950/20 hover:text-red-400 transition-all cursor-pointer"
-                            >
-                              Decline
-                            </button>
-                          </div>
+                          approvingId === item.id ? (
+                            <div className="flex items-center gap-2">
+                              <input 
+                                type="text"
+                                placeholder="Meeting link or ID..."
+                                value={customMeetLink}
+                                onChange={(e) => setCustomMeetLink(e.target.value)}
+                                className="px-2 py-1 text-[10px] bg-brand-bg/50 border border-brand-border rounded focus:outline-none focus:border-brand-accent w-48 text-brand-text-primary placeholder:text-brand-text-muted"
+                              />
+                              <button
+                                onClick={() => handleAction(item.id, 'scheduled', customMeetLink.trim() || generateMeetLink())}
+                                className="px-2.5 py-1 rounded-lg bg-brand-accent text-brand-bg text-[10px] font-bold hover:bg-brand-accent-hover transition-colors cursor-pointer"
+                              >
+                                Confirm
+                              </button>
+                              <button
+                                onClick={() => { setApprovingId(null); setCustomMeetLink(''); }}
+                                className="px-2.5 py-1 rounded-lg border border-brand-border text-brand-text-secondary text-[10px] font-bold hover:bg-brand-border/40 transition-colors cursor-pointer"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                onClick={() => { setApprovingId(item.id); setCustomMeetLink(generateMeetLink()); }}
+                                className="px-2.5 py-1 rounded-lg bg-brand-accent text-brand-bg text-[10px] font-bold hover:bg-brand-accent-hover transition-colors cursor-pointer"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                onClick={() => handleAction(item.id, 'declined')}
+                                className="px-2.5 py-1 rounded-lg border border-brand-border text-brand-text-secondary text-[10px] font-bold hover:bg-red-950/20 hover:text-red-400 transition-all cursor-pointer"
+                              >
+                                Decline
+                              </button>
+                            </div>
+                          )
                         ) : (
                           <span className="px-2.5 py-1 rounded-lg bg-brand-border/40 text-brand-text-secondary text-[10px] font-bold flex items-center gap-1 border border-brand-border">
                             <AlertCircle size={10} />
